@@ -45,6 +45,19 @@ type HourUsage = {
   tokens: TokenTotals
 }
 
+type BurnRate = {
+  ready: boolean
+  currentPerHour: number
+  previousPerHour: number
+  baselinePerHour: number
+  ratio: number
+  changePercent: number
+  trend: 'accelerating' | 'cooling' | 'steady' | 'new-spike' | 'idle'
+  level: 'learning' | 'low' | 'normal' | 'elevated' | 'high' | 'critical'
+  confidence: 'insufficient' | 'low' | 'medium' | 'high'
+  baselineSamples: number
+}
+
 type SyncStats = {
   filesSeen: number
   filesChanged: number
@@ -58,6 +71,7 @@ type VarnqorSystemStatus = {
   claude: ClaudeDetection
   usage: UsageOverview
   hourly: HourUsage[] | null
+  burn: BurnRate
   sync: SyncStats
   storageReady: boolean
   usageError?: string
