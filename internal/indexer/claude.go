@@ -22,6 +22,14 @@ func SyncClaude(store *storage.Store, projectsPath string) (domain.SyncStats, er
 	}
 
 	stats := domain.SyncStats{FilesSeen: len(files)}
+	toolBackfill, err := store.EnsureToolIndex(claudeProvider)
+	if err != nil {
+		return stats, fmt.Errorf("prepare Claude tool index: %w", err)
+	}
+	if toolBackfill {
+		stats.Rebuilt = true
+	}
+
 	states, err := store.SourceStates(claudeProvider)
 	if err != nil {
 		return stats, err
@@ -41,6 +49,9 @@ func SyncClaude(store *storage.Store, projectsPath string) (domain.SyncStats, er
 		return stats, err
 	}
 	if rebuild {
+		if err := store.ResetToolProvider(claudeProvider); err != nil {
+			return stats, fmt.Errorf("reset Claude tool index: %w", err)
+		}
 		if err := store.ResetProvider(claudeProvider); err != nil {
 			return stats, fmt.Errorf("reset Claude index: %w", err)
 		}
@@ -58,18 +69,18 @@ func SyncClaude(store *storage.Store, projectsPath string) (domain.SyncStats, er
 			}
 		}
 
-		calls, nextOffset, warnings, err := claude.ReadUsageChunk(file, offset)
+		chunk, err := claude.ReadTranscriptChunk(file, offset)
 		if err != nil {
 			return stats, fmt.Errorf("index %s: %w", file.Path, err)
 		}
-		checkpoint, err := fileCheckpoint(file.Path, nextOffset)
+		checkpoint, err := fileCheckpoint(file.Path, chunk.NextOffset)
 		if err != nil {
 			return stats, fmt.Errorf("checkpoint %s: %w", file.Path, err)
 		}
 
-		records := make([]storage.UsageRecord, 0, len(calls))
-		for _, indexed := range calls {
-			records = append(records, storage.UsageRecord{
+		usageRecords := make([]storage.UsageRecord, 0, len(chunk.Usage))
+		for _, indexed := range chunk.Usage {
+			usageRecords = append(usageRecords, storage.UsageRecord{
 				Key:          indexed.Key,
 				Provider:     claudeProvider,
 				SourcePath:   file.Path,
@@ -78,25 +89,70 @@ func SyncClaude(store *storage.Store, projectsPath string) (domain.SyncStats, er
 			})
 		}
 
+		toolUses := make([]storage.ToolUseRecord, 0, len(chunk.ToolUses))
+		for _, event := range chunk.ToolUses {
+			timestamp, err := timeFromClaude(event.Timestamp)
+			if err != nil {
+				return stats, fmt.Errorf("parse tool timestamp in %s: %w", file.Path, err)
+			}
+			toolUses = append(toolUses, storage.ToolUseRecord{
+				Provider:     claudeProvider,
+				ToolUseID:    event.ID,
+				Timestamp:    timestamp,
+				ToolName:     event.Name,
+				Project:      event.Project,
+				Session:      event.Session,
+				Subagent:     event.Subagent,
+				FilePath:     event.FilePath,
+				ReadOffset:   event.ReadOffset,
+				ReadLimit:    event.ReadLimit,
+				SourcePath:   file.Path,
+				SourceOffset: event.SourceOffset,
+			})
+		}
+		toolResults := make([]storage.ToolResultRecord, 0, len(chunk.ToolResults))
+		for _, event := range chunk.ToolResults {
+			toolResults = append(toolResults, storage.ToolResultRecord{
+				Provider:     claudeProvider,
+				ToolUseID:    event.ToolUseID,
+				ResultBytes:  event.ResultBytes,
+				IsError:      event.IsError,
+				SourcePath:   file.Path,
+				SourceOffset: event.SourceOffset,
+			})
+		}
+		if err := store.ApplyToolEvents(toolUses, toolResults); err != nil {
+			return stats, fmt.Errorf("persist tool metadata for %s: %w", file.Path, err)
+		}
+
 		if err := store.ApplyFile(storage.SourceState{
 			Provider:      claudeProvider,
 			Path:          file.Path,
 			Size:          file.Size,
 			ModTimeNS:     file.ModTime.UnixNano(),
-			Offset:        nextOffset,
+			Offset:        chunk.NextOffset,
 			Checkpoint:    checkpoint,
-			ParseWarnings: state.ParseWarnings + warnings,
-		}, records); err != nil {
+			ParseWarnings: state.ParseWarnings + chunk.Warnings,
+		}, usageRecords); err != nil {
 			return stats, fmt.Errorf("persist %s: %w", file.Path, err)
 		}
 
 		stats.FilesChanged++
-		stats.BytesIndexed += nextOffset - offset
-		stats.RecordsObserved += len(calls)
-		stats.ParseWarnings += warnings
+		stats.BytesIndexed += chunk.NextOffset - offset
+		stats.RecordsObserved += len(chunk.Usage)
+		stats.ParseWarnings += chunk.Warnings
 	}
 
 	return stats, nil
+}
+
+func timeFromClaude(value string) (time.Time, error) {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid timestamp %q", value)
 }
 
 func indexNeedsRebuild(states []storage.SourceState, fileByPath map[string]claude.TranscriptFile) (bool, error) {
