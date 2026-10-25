@@ -32,6 +32,9 @@ const emptyStatus: VarnqorSystemStatus = {
   attribution: {
     calls: 0, tokens: emptyTokens, projects: [], sessions: [], models: [], agents: [],
   },
+  waste: {
+    toolCalls: 0, repeatedReads: 0, estimatedRepeatedTokens: 0, confidence: 'insufficient', findings: [],
+  },
   sync: {
     filesSeen: 0, filesChanged: 0, bytesIndexed: 0, recordsObserved: 0, parseWarnings: 0, rebuilt: false,
   },
@@ -67,6 +70,11 @@ function trendLabel(trend: BurnRate['trend']) {
 function shortSession(value?: string) {
   if (!value) return 'unknown'
   return value.length > 12 ? `${value.slice(0, 8)}…` : value
+}
+function shortPath(value: string) {
+  const parts = value.replace(/\\/g, '/').split('/').filter(Boolean)
+  if (parts.length <= 2) return value || 'unknown file'
+  return parts.slice(-2).join('/')
 }
 function metric(label: string, value: number, detail: string) {
   return <article className="metric" key={label}><span className="label">{label}</span><strong>{formatTokens(value)}</strong><small>{detail}</small></article>
@@ -117,6 +125,8 @@ export default function App() {
   const hourly = status.hourly ?? []
   const burn = status.burn
   const attribution = status.attribution
+  const waste = status.waste
+  const wasteFindings = waste.findings ?? []
   const projects = attribution.projects ?? []
   const sessions = attribution.sessions ?? []
   const burnModels = attribution.models ?? []
@@ -126,19 +136,31 @@ export default function App() {
   const maxHourly = Math.max(1, ...hourly.map((bucket) => bucket.tokens.total))
   const meterWidth = burn.ready ? Math.min(100, Math.max(2, (burn.ratio / 2.5) * 100)) : 0
 
-  const headline = loading ? 'Indexing local usage…' : status.usageError ? 'Local index needs attention.' : burn.ready ? 'Burn drivers are visible.' : hasUsage ? 'Learning your usage baseline.' : claude.detected ? 'Claude Code detected.' : 'Claude Code not detected.'
+  const headline = loading
+    ? 'Indexing local usage…'
+    : status.usageError
+      ? 'Local index needs attention.'
+      : wasteFindings.length > 0
+        ? 'Potential repeat overhead detected.'
+        : burn.ready
+          ? 'Burn drivers are visible.'
+          : hasUsage
+            ? 'Learning your usage baseline.'
+            : claude.detected
+              ? 'Claude Code detected.'
+              : 'Claude Code not detected.'
 
   return (
     <main className="shell">
       <header className="topbar">
         <div><div className="wordmark">VARNQOR</div><div className="tagline">Resource intelligence for AI coding agents.</div></div>
-        <div className="milestone">M4 · ATTRIBUTION</div>
+        <div className="milestone">M5 · WASTE ANALYZER</div>
       </header>
 
       <section className="hero">
         <div className="eyebrow">CLAUDE CODE · TODAY</div>
         <h1>{headline}</h1>
-        <p>Varnqor now connects the burn signal to the projects, sessions, models and agent activity that produced it. Attribution uses the exact same rolling 60-minute window as Current Burn Rate.</p>
+        <p>Varnqor now inspects privacy-safe tool metadata to identify exact file reads repeated in a short window. Findings are heuristic and explainable: they indicate possible repeated context, not proven waste.</p>
         {status.usageError && <div className="warning">{status.usageError}</div>}
       </section>
 
@@ -183,6 +205,37 @@ export default function App() {
           <DriverList title="MODELS" items={burnModels} kind="model" />
           <DriverList title="AGENT SPLIT" items={agents} kind="agent" />
         </div>
+      </section>
+
+      <section className="wastePanel" aria-label="Waste analysis">
+        <div className="wasteHeader">
+          <div>
+            <span className="label">WASTE ANALYZER · LAST 60 MIN</span>
+            <h2>Repeated file reads.</h2>
+            <p>Exact Read target + range repeated within 15 minutes, with no observed write/edit to that file in the same transcript.</p>
+          </div>
+          <div className="wasteSummary">
+            <span>POTENTIAL REPEATED CONTEXT</span>
+            <strong>{waste.estimatedRepeatedTokens > 0 ? `~${formatTokens(waste.estimatedRepeatedTokens)}` : '—'}</strong>
+            <small>estimated tokens · {waste.confidence.toUpperCase()} confidence</small>
+          </div>
+        </div>
+
+        {wasteFindings.length === 0 ? (
+          <div className="wasteEmpty">No repeated-read pattern matched the current rule · {waste.toolCalls} tool calls analyzed.</div>
+        ) : (
+          <div className="wasteRows">
+            {wasteFindings.slice(0, 4).map((finding) => (
+              <div className="wasteRow" key={`${finding.project}:${finding.session}:${finding.filePath}:${finding.readOffset ?? 0}:${finding.readLimit ?? 0}`} title={finding.filePath}>
+                <div className="wasteFile"><strong>{shortPath(finding.filePath)}</strong><small>{finding.project} · {shortSession(finding.session)}</small></div>
+                <div><span className="label">READS</span><strong>{finding.reads}</strong><small>{finding.repeats} repeated</small></div>
+                <div><span className="label">EST. CONTEXT</span><strong>{finding.estimatedTokens > 0 ? `~${formatTokens(finding.estimatedTokens)}` : 'n/a'}</strong><small>tokens</small></div>
+                <div><span className="label">CONFIDENCE</span><strong>{finding.confidence.toUpperCase()}</strong><small>{finding.severity.toUpperCase()} signal</small></div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="wasteDisclaimer">Heuristic only · token estimate = returned tool-result bytes ÷ 4 · no tool-result content is stored.</div>
       </section>
 
       <section className="chartPanel" aria-label="Hourly token activity">
