@@ -4,17 +4,11 @@
 
 The first automated target is a portable Windows AMD64 executable.
 
-Wails builds the frontend, generates missing Windows build assets when needed, compiles the Go application, and writes the executable to `build/bin`.
+## Continuous development artifact
 
-## CI smoke build
+Every push to `main` builds the real Wails Windows application, runs CLI smoke checks, generates a SHA-256 checksum, and uploads the executable plus checksum as an Actions artifact retained for seven days.
 
-Every push to `main` now includes a Windows Wails build and executes:
-
-```text
-varnqor-ci.exe version
-```
-
-This catches desktop-only compilation regressions that backend unit tests cannot see.
+These are development builds, not signed releases.
 
 ## Manual release artifact
 
@@ -28,6 +22,23 @@ When the project is ready for public distribution, push a semantic prerelease ta
 v0.1.0-alpha.1
 ```
 
-The workflow will build `varnqor-windows-amd64.exe`, upload the artifact, and create a GitHub prerelease with generated notes.
+The workflow will build `varnqor-windows-amd64.exe`, generate `varnqor-windows-amd64.exe.sha256`, upload both, and create a GitHub prerelease with generated notes.
 
-Do not tag a release merely because the workflow exists. Before the first public tag, verify the generated executable on a clean Windows machine and replace the generated/default application icon with the approved Varnqor brand asset.
+## Integrity verification
+
+On Windows PowerShell:
+
+```powershell
+(Get-FileHash .\varnqor-windows-amd64.exe -Algorithm SHA256).Hash.ToLower()
+```
+
+Compare that value with the first field in the distributed `.sha256` file.
+
+## Release gates
+
+Do not tag a release merely because the workflow exists. Before the first public tag:
+
+1. verify the generated executable launches on a clean Windows machine;
+2. replace the generated/default application icon with the approved Varnqor brand asset;
+3. review release notes and privacy claims;
+4. note that the current alpha executable is unsigned unless code signing is added.

@@ -11,7 +11,10 @@ All notable Varnqor changes are tracked here. The project uses semantic versioni
 - Local Settings panel and first-run onboarding.
 - Visual Doctor diagnostics plus `varnqor doctor` and `varnqor status` CLI commands.
 - `varnqor analyze` and `varnqor forecast`, including JSON output for scripts.
-- Windows desktop smoke builds in CI and short-lived downloadable development artifacts.
+- CLI configuration for refresh interval and configured daily budgets.
+- Human-friendly token budget parsing (`500k`, `10m`, `1.5g`).
+- Windows desktop smoke builds and short-lived downloadable development artifacts.
+- SHA-256 checksum generation for development and release binaries.
 - Tag-driven Windows prerelease workflow.
 - Dependabot for Go, frontend npm, and GitHub Actions dependencies.
 - CODEOWNERS and repository verification documentation.
