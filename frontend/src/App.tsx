@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
 
+const emptyTokens: TokenTotals = {
+  input: 0,
+  output: 0,
+  cacheCreation: 0,
+  cacheRead: 0,
+  cacheCreation5m: 0,
+  cacheCreation1h: 0,
+  total: 0,
+}
+
 const emptyStatus: VarnqorSystemStatus = {
   claude: {
     detected: false,
@@ -10,15 +20,45 @@ const emptyStatus: VarnqorSystemStatus = {
     projects: 0,
     sessions: 0,
   },
+  usage: {
+    date: '',
+    calls: 0,
+    sessions: 0,
+    projects: 0,
+    filesScanned: 0,
+    parseWarnings: 0,
+    cacheReadShare: 0,
+    tokens: emptyTokens,
+    models: [],
+  },
 }
 
-function formatLastActivity(value?: string) {
-  if (!value) return 'No local activity found'
+const compactNumber = new Intl.NumberFormat(undefined, {
+  notation: 'compact',
+  maximumFractionDigits: 2,
+})
+
+function formatTokens(value: number) {
+  return compactNumber.format(value)
+}
+
+function formatDate(value?: string) {
+  if (!value) return 'No activity today'
 
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() <= 1) return 'No activity today'
 
   return date.toLocaleString()
+}
+
+function metric(label: string, value: number, detail: string) {
+  return (
+    <article className="metric" key={label}>
+      <span className="label">{label}</span>
+      <strong>{formatTokens(value)}</strong>
+      <small>{detail}</small>
+    </article>
+  )
 }
 
 export default function App() {
@@ -44,6 +84,19 @@ export default function App() {
   }, [])
 
   const claude = status.claude
+  const usage = status.usage
+  const hasUsage = usage.calls > 0
+  const models = usage.models ?? []
+
+  const headline = loading
+    ? 'Scanning local usage…'
+    : status.usageError
+      ? 'Usage scan needs attention.'
+      : hasUsage
+        ? 'Usage signal acquired.'
+        : claude.detected
+          ? 'Claude Code detected.'
+          : 'Claude Code not detected.'
 
   return (
     <main className="shell">
@@ -52,46 +105,76 @@ export default function App() {
           <div className="wordmark">VARNQOR</div>
           <div className="tagline">Resource intelligence for AI coding agents.</div>
         </div>
-        <div className="milestone">M0 · FIRST SIGNAL</div>
+        <div className="milestone">M1 · USAGE ENGINE</div>
       </header>
 
       <section className="hero">
-        <div className="eyebrow">LOCAL SIGNAL</div>
-        <h1>{loading ? 'Scanning this machine…' : claude.detected ? 'Claude Code detected.' : 'Claude Code not detected.'}</h1>
+        <div className="eyebrow">CLAUDE CODE · TODAY</div>
+        <h1>{headline}</h1>
         <p>
-          Varnqor is starting with one promise: turn local agent activity into reliable,
-          explainable resource intelligence.
+          Read-only local telemetry, deduplicated by API call. Prompts, responses and source code
+          are not retained by the usage engine.
         </p>
+        {status.usageError && <div className="warning">{status.usageError}</div>}
       </section>
 
-      <section className="grid" aria-label="Claude Code signal">
-        <article className="metric">
-          <span className="label">STATUS</span>
-          <strong className={claude.detected ? 'ok' : 'muted'}>
-            {claude.detected ? 'CONNECTED' : 'NO SIGNAL'}
-          </strong>
-          <small>Binary or local Claude data</small>
-        </article>
-
-        <article className="metric">
-          <span className="label">PROJECTS</span>
-          <strong>{claude.projects}</strong>
-          <small>Local project stores discovered</small>
-        </article>
-
-        <article className="metric">
-          <span className="label">SESSIONS</span>
-          <strong>{claude.sessions}</strong>
-          <small>Main JSONL transcripts found</small>
-        </article>
+      <section className="grid" aria-label="Token usage today">
+        {metric('INPUT', usage.tokens.input, 'Uncached input tokens')}
+        {metric('OUTPUT', usage.tokens.output, 'Generated output tokens')}
+        {metric('CACHE READ', usage.tokens.cacheRead, 'Input served from cache')}
+        {metric('CACHE WRITE', usage.tokens.cacheCreation, 'Input written to cache')}
       </section>
 
-      <section className="signal">
-        <div>
-          <span className="label">LAST LOCAL ACTIVITY</span>
-          <p>{formatLastActivity(claude.lastActivity)}</p>
+      <section className="summary" aria-label="Usage summary">
+        <div className="summaryItem">
+          <span className="label">TOTAL ACTIVITY</span>
+          <strong>{formatTokens(usage.tokens.total)}</strong>
         </div>
-        <div className="privacy">LOCAL-FIRST · READ-ONLY</div>
+        <div className="summaryItem">
+          <span className="label">API CALLS</span>
+          <strong>{usage.calls}</strong>
+        </div>
+        <div className="summaryItem">
+          <span className="label">ACTIVE SESSIONS</span>
+          <strong>{usage.sessions}</strong>
+        </div>
+        <div className="summaryItem">
+          <span className="label">CACHE READ SHARE</span>
+          <strong>{usage.cacheReadShare.toFixed(1)}%</strong>
+        </div>
+      </section>
+
+      <section className="lowerGrid">
+        <div className="panel">
+          <div className="panelHeader">
+            <span className="label">MODELS OBSERVED</span>
+            <span>{models.length}</span>
+          </div>
+          {models.length === 0 ? (
+            <p className="empty">No token-bearing Claude calls found for today.</p>
+          ) : (
+            <div className="models">
+              {models.slice(0, 4).map((model) => (
+                <div className="modelRow" key={model.model}>
+                  <div>
+                    <strong>{model.model}</strong>
+                    <small>{model.calls} calls</small>
+                  </div>
+                  <span>{formatTokens(model.tokens.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel signalPanel">
+          <span className="label">LAST TOKEN ACTIVITY</span>
+          <strong>{formatDate(usage.lastActivity)}</strong>
+          <p>
+            {usage.filesScanned} JSONL files scanned · {usage.parseWarnings} parse warnings
+          </p>
+          <div className="privacy">LOCAL-FIRST · READ-ONLY</div>
+        </div>
       </section>
 
       <footer>

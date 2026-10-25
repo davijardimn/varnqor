@@ -27,27 +27,28 @@ Most usage tools answer *how much was used?* Varnqor is being built to answer th
 
 > **Control the burn.**
 
-## First Signal
+## Current milestone — Usage Engine
 
-The current milestone is intentionally small: detect Claude Code and prove that Varnqor can turn local agent activity into a reliable signal.
+Varnqor now has a read-only Claude Code usage scanner that turns local JSONL transcripts into deduplicated token telemetry.
 
-The desktop shell currently targets:
+Today the engine can report:
 
 ```text
-Claude Code
-    |
-    v
-Local detection
-    |
-    +-- project count
-    +-- session count
-    +-- last local activity
-    |
-    v
-Varnqor Desktop
+uncached input
+output
+cache reads
+cache writes
+5m / 1h cache creation split
+unique API calls
+active sessions
+active projects
+model breakdown
+cache read share
 ```
 
-No prompt text is needed for this milestone.
+The parser prefers final streaming records and deduplicates repeated API calls instead of summing every JSONL line.
+
+See [docs/usage-engine.md](docs/usage-engine.md) for the accounting methodology.
 
 ## Product direction
 
@@ -62,9 +63,7 @@ Varnqor will grow in that order. Optimization comes after the measurements are t
 - **Wails v2** for the native desktop shell
 - **Go** for collectors, analytics and the core engine
 - **React + TypeScript + Vite** for the interface
-- **SQLite** for local history in a later v0.1 milestone
-
-Wails v2 is used deliberately while Wails v3 remains beta.
+- **SQLite** for incremental local history in the next storage milestone
 
 ## Planned v0.1
 
@@ -72,11 +71,13 @@ Wails v2 is used deliberately while Wails v3 remains beta.
 - [x] Claude Code local detector
 - [x] Claude project/session discovery
 - [x] Desktop First Signal screen
-- [ ] Claude usage event parser
-- [ ] Token accounting
-- [ ] SQLite history
+- [x] Claude usage event parser
+- [x] Deduplicated token accounting
+- [x] Model/session/project daily aggregation
+- [ ] SQLite incremental history
+- [ ] Hourly usage series
 - [ ] Burn rate
-- [ ] Session/project attribution
+- [ ] Deep session/project attribution
 - [ ] Waste Analyzer
 - [ ] Usage forecasting
 
@@ -141,9 +142,14 @@ go test ./internal/...
 ├── internal/
 │   └── providers/
 │       └── claude/
+│           ├── detect.go
+│           └── usage.go
 ├── frontend/
 │   └── src/
 ├── docs/
+│   ├── architecture.md
+│   ├── privacy.md
+│   └── usage-engine.md
 ├── app.go
 ├── main.go
 └── wails.json
