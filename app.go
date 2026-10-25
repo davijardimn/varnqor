@@ -24,6 +24,7 @@ type SystemStatus struct {
 	Hourly       []domain.HourUsage       `json:"hourly"`
 	Burn         analytics.BurnRate       `json:"burn"`
 	Attribution  domain.AttributionReport `json:"attribution"`
+	Waste        domain.WasteReport       `json:"waste"`
 	Sync         domain.SyncStats         `json:"sync"`
 	StorageReady bool                     `json:"storageReady"`
 	UsageError   string                   `json:"usageError,omitempty"`
@@ -109,5 +110,12 @@ func (a *App) GetSystemStatus() SystemStatus {
 		return status
 	}
 	status.Attribution = attribution
+
+	toolCalls, err := a.store.ToolCalls("claude", currentStart, now)
+	if err != nil {
+		status.UsageError = fmt.Sprintf("query tool metadata: %v", err)
+		return status
+	}
+	status.Waste = analytics.AnalyzeRepeatedFileReads(toolCalls, currentStart, now)
 	return status
 }
