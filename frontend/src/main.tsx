@@ -3,9 +3,8 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles.css'
 import './waste-intelligence.css'
+import './product.css'
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode><App /></StrictMode>,
 )

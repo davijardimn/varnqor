@@ -8,5 +8,12 @@
   "frontend:dev:serverUrl": "auto",
   "author": {
     "name": "Davi Jardim Nascimento"
+  },
+  "info": {
+    "companyName": "Davi Jardim Nascimento",
+    "productName": "Varnqor",
+    "productVersion": "0.1.0-alpha.1",
+    "copyright": "Copyright © 2026 Davi Jardim Nascimento",
+    "comments": "Local-first resource intelligence for AI coding agents."
   }
 }

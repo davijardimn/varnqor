@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible Varnqor problem.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping test Varnqor. Never paste prompts, source code, credentials, or private transcript contents.
+  - type: input
+    id: version
+    attributes:
+      label: Varnqor version
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the visible error and the smallest reproducible sequence.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Paste `varnqor doctor` output after checking that it contains no paths you consider sensitive.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
