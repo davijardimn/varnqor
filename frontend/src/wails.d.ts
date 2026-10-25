@@ -39,9 +39,27 @@ type UsageOverview = {
   models: ModelUsage[] | null
 }
 
+type HourUsage = {
+  start: string
+  calls: number
+  tokens: TokenTotals
+}
+
+type SyncStats = {
+  filesSeen: number
+  filesChanged: number
+  bytesIndexed: number
+  recordsObserved: number
+  parseWarnings: number
+  rebuilt: boolean
+}
+
 type VarnqorSystemStatus = {
   claude: ClaudeDetection
   usage: UsageOverview
+  hourly: HourUsage[] | null
+  sync: SyncStats
+  storageReady: boolean
   usageError?: string
 }
 
