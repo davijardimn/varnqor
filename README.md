@@ -20,24 +20,35 @@ Most usage tools answer *how much was used?* Varnqor is being built to answer th
 
 > **Control the burn.**
 
-## Current milestone — Attribution Engine
+## Current milestone — Waste Analyzer v0.1
 
-Varnqor can now connect its rolling Burn Rate signal to the workloads that produced it.
+Varnqor can now move from **where usage came from** to a first explainable signal for **why some of that activity may have been avoidable**.
 
-The desktop can attribute the latest 60 minutes across:
+The first Waste Intelligence rule detects exact file reads repeated within a short window:
 
 ```text
-projects
-sessions
-models
-main agent vs subagents
+same transcript
+same file
+same offset / limit
+within 15 minutes
+no observed write/edit in between
 ```
 
-Each driver includes call count, total token activity and share of the same burn window. The attribution window is deliberately identical to Current Burn Rate, so the explanation and the signal cannot drift onto different time ranges.
+For matching reads, Varnqor stores only privacy-minimised tool metadata and the byte length of returned tool results. It never stores the file content or tool-result text.
 
-A high share is not treated as waste. Attribution says **where usage came from**; Waste Intelligence will separately determine whether any pattern appears avoidable.
+The desktop can show:
 
-See [docs/attribution.md](docs/attribution.md), [docs/burn-rate.md](docs/burn-rate.md), [docs/usage-engine.md](docs/usage-engine.md), and [docs/storage.md](docs/storage.md).
+```text
+repeated-read findings
+number of repeated reads
+rough repeated-context token estimate
+per-finding confidence
+file / project / session evidence
+```
+
+The token estimate is explicitly heuristic (`returned bytes / 4`) and is never presented as provider-reported usage. A repeated read can be legitimate, so findings are described as **potential repeated context**, not factual waste.
+
+See [docs/waste-analysis.md](docs/waste-analysis.md), [docs/attribution.md](docs/attribution.md), [docs/burn-rate.md](docs/burn-rate.md), [docs/usage-engine.md](docs/usage-engine.md), and [docs/storage.md](docs/storage.md).
 
 ## Product direction
 
@@ -65,7 +76,8 @@ OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
 - [x] Hourly usage series
 - [x] Burn rate
 - [x] Deep session/project attribution
-- [ ] Waste Analyzer
+- [x] Waste Analyzer v0.1 — repeated file reads
+- [ ] Additional waste rules
 - [ ] Usage forecasting
 
 ## Local-first
@@ -78,7 +90,7 @@ No source-code uploads
 Read-only source analysis
 ```
 
-The usage index stores resource metadata, not prompt or response content. See [docs/privacy.md](docs/privacy.md).
+The local index stores resource and tool metadata required for analysis, not prompt, response, file or tool-result content. See [docs/privacy.md](docs/privacy.md).
 
 ## Honest quota intelligence
 
