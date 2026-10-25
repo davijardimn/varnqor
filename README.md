@@ -20,32 +20,24 @@ Most usage tools answer *how much was used?* Varnqor is being built to answer th
 
 > **Control the burn.**
 
-## Current milestone — Burn Rate
+## Current milestone — Attribution Engine
 
-Varnqor now converts local Claude Code usage history into an explainable burn signal.
+Varnqor can now connect its rolling Burn Rate signal to the workloads that produced it.
 
-The desktop can show:
+The desktop can attribute the latest 60 minutes across:
 
 ```text
-uncached input
-output
-cache reads / writes
-unique API calls
-active sessions and projects
-model breakdown
-hourly token activity
-rolling 60-minute burn rate
-active-hour baseline
-acceleration / cooling trend
-signal confidence
-local index status
+projects
+sessions
+models
+main agent vs subagents
 ```
 
-Burn Rate compares the latest rolling 60 minutes with the median of completed active hours. Idle hours are excluded, and Varnqor stays in a learning state until enough baseline history exists.
+Each driver includes call count, total token activity and share of the same burn window. The attribution window is deliberately identical to Current Burn Rate, so the explanation and the signal cannot drift onto different time ranges.
 
-The burn signal is a Varnqor heuristic. It is not provider quota remaining and it does not claim that high activity is waste.
+A high share is not treated as waste. Attribution says **where usage came from**; Waste Intelligence will separately determine whether any pattern appears avoidable.
 
-See [docs/burn-rate.md](docs/burn-rate.md) for the complete methodology, [docs/usage-engine.md](docs/usage-engine.md) for accounting, and [docs/storage.md](docs/storage.md) for indexing semantics.
+See [docs/attribution.md](docs/attribution.md), [docs/burn-rate.md](docs/burn-rate.md), [docs/usage-engine.md](docs/usage-engine.md), and [docs/storage.md](docs/storage.md).
 
 ## Product direction
 
@@ -72,7 +64,7 @@ OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
 - [x] SQLite incremental history
 - [x] Hourly usage series
 - [x] Burn rate
-- [ ] Deep session/project attribution
+- [x] Deep session/project attribution
 - [ ] Waste Analyzer
 - [ ] Usage forecasting
 

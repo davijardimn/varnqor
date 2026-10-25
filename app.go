@@ -19,13 +19,14 @@ type App struct {
 }
 
 type SystemStatus struct {
-	Claude       claude.Detection     `json:"claude"`
-	Usage        domain.UsageOverview `json:"usage"`
-	Hourly       []domain.HourUsage   `json:"hourly"`
-	Burn         analytics.BurnRate   `json:"burn"`
-	Sync         domain.SyncStats     `json:"sync"`
-	StorageReady bool                 `json:"storageReady"`
-	UsageError   string               `json:"usageError,omitempty"`
+	Claude       claude.Detection         `json:"claude"`
+	Usage        domain.UsageOverview     `json:"usage"`
+	Hourly       []domain.HourUsage       `json:"hourly"`
+	Burn         analytics.BurnRate       `json:"burn"`
+	Attribution  domain.AttributionReport `json:"attribution"`
+	Sync         domain.SyncStats         `json:"sync"`
+	StorageReady bool                     `json:"storageReady"`
+	UsageError   string                   `json:"usageError,omitempty"`
 }
 
 func NewApp() *App { return &App{} }
@@ -80,12 +81,13 @@ func (a *App) GetSystemStatus() SystemStatus {
 	status.Usage = usage
 	status.Hourly = hourly
 
-	current, _, err := a.store.UsageWindow("claude", now.Add(-time.Hour), now)
+	currentStart := now.Add(-time.Hour)
+	current, _, err := a.store.UsageWindow("claude", currentStart, now)
 	if err != nil {
 		status.UsageError = fmt.Sprintf("query current burn window: %v", err)
 		return status
 	}
-	previous, _, err := a.store.UsageWindow("claude", now.Add(-2*time.Hour), now.Add(-time.Hour))
+	previous, _, err := a.store.UsageWindow("claude", now.Add(-2*time.Hour), currentStart)
 	if err != nil {
 		status.UsageError = fmt.Sprintf("query previous burn window: %v", err)
 		return status
@@ -101,5 +103,11 @@ func (a *App) GetSystemStatus() SystemStatus {
 	}
 	status.Burn = analytics.ComputeBurnRate(current.Total, previous.Total, baselineSamples)
 
+	attribution, err := a.store.Attribution("claude", currentStart, now, 5)
+	if err != nil {
+		status.UsageError = fmt.Sprintf("query burn attribution: %v", err)
+		return status
+	}
+	status.Attribution = attribution
 	return status
 }

@@ -58,6 +58,27 @@ type BurnRate = {
   baselineSamples: number
 }
 
+type AttributionItem = {
+  key: string
+  label: string
+  project?: string
+  session?: string
+  calls: number
+  tokens: TokenTotals
+  sharePercent: number
+}
+
+type AttributionReport = {
+  start?: string
+  end?: string
+  calls: number
+  tokens: TokenTotals
+  projects: AttributionItem[] | null
+  sessions: AttributionItem[] | null
+  models: AttributionItem[] | null
+  agents: AttributionItem[] | null
+}
+
 type SyncStats = {
   filesSeen: number
   filesChanged: number
@@ -72,6 +93,7 @@ type VarnqorSystemStatus = {
   usage: UsageOverview
   hourly: HourUsage[] | null
   burn: BurnRate
+  attribution: AttributionReport
   sync: SyncStats
   storageReady: boolean
   usageError?: string
