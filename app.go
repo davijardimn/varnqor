@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davijardimn/varnqor/internal/analytics"
 	"github.com/davijardimn/varnqor/internal/domain"
 	"github.com/davijardimn/varnqor/internal/indexer"
 	"github.com/davijardimn/varnqor/internal/providers/claude"
@@ -21,6 +22,7 @@ type SystemStatus struct {
 	Claude       claude.Detection     `json:"claude"`
 	Usage        domain.UsageOverview `json:"usage"`
 	Hourly       []domain.HourUsage   `json:"hourly"`
+	Burn         analytics.BurnRate   `json:"burn"`
 	Sync         domain.SyncStats     `json:"sync"`
 	StorageReady bool                 `json:"storageReady"`
 	UsageError   string               `json:"usageError,omitempty"`
@@ -62,7 +64,8 @@ func (a *App) GetSystemStatus() SystemStatus {
 	}
 	status.Sync = syncStats
 
-	usage, hourly, err := a.store.DailyUsage("claude", time.Now())
+	now := time.Now()
+	usage, hourly, err := a.store.DailyUsage("claude", now)
 	if err != nil {
 		status.UsageError = fmt.Sprintf("query local usage: %v", err)
 		return status
@@ -76,5 +79,27 @@ func (a *App) GetSystemStatus() SystemStatus {
 	usage.ParseWarnings = warnings
 	status.Usage = usage
 	status.Hourly = hourly
+
+	current, _, err := a.store.UsageWindow("claude", now.Add(-time.Hour), now)
+	if err != nil {
+		status.UsageError = fmt.Sprintf("query current burn window: %v", err)
+		return status
+	}
+	previous, _, err := a.store.UsageWindow("claude", now.Add(-2*time.Hour), now.Add(-time.Hour))
+	if err != nil {
+		status.UsageError = fmt.Sprintf("query previous burn window: %v", err)
+		return status
+	}
+
+	localNow := now.In(now.Location())
+	currentHour := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), localNow.Hour(), 0, 0, 0, localNow.Location())
+	baselineSamples := make([]int64, 0, len(hourly))
+	for _, bucket := range hourly {
+		if bucket.Start.Before(currentHour) && bucket.Tokens.Total > 0 {
+			baselineSamples = append(baselineSamples, bucket.Tokens.Total)
+		}
+	}
+	status.Burn = analytics.ComputeBurnRate(current.Total, previous.Total, baselineSamples)
+
 	return status
 }
