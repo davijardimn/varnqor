@@ -79,6 +79,33 @@ type AttributionReport = {
   agents: AttributionItem[] | null
 }
 
+type WasteFinding = {
+  ruleId: string
+  title: string
+  severity: 'low' | 'medium' | 'high'
+  confidence: 'low' | 'medium'
+  project: string
+  session: string
+  filePath: string
+  readOffset?: number
+  readLimit?: number
+  reads: number
+  repeats: number
+  repeatedBytes: number
+  estimatedTokens: number
+  explanation: string
+}
+
+type WasteReport = {
+  start?: string
+  end?: string
+  toolCalls: number
+  repeatedReads: number
+  estimatedRepeatedTokens: number
+  confidence: 'insufficient' | 'low' | 'medium'
+  findings: WasteFinding[] | null
+}
+
 type SyncStats = {
   filesSeen: number
   filesChanged: number
@@ -94,6 +121,7 @@ type VarnqorSystemStatus = {
   hourly: HourUsage[] | null
   burn: BurnRate
   attribution: AttributionReport
+  waste: WasteReport
   sync: SyncStats
   storageReady: boolean
   usageError?: string
