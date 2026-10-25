@@ -4,7 +4,7 @@
 
 ### Resource intelligence for AI coding agents.
 
-**Observe usage. Predict pressure. Detect waste.**
+**Observe usage. Predict pressure. Detect waste. Advise with evidence.**
 
 [![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-111111)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111)](LICENSE)
@@ -16,13 +16,55 @@
 
 Varnqor is a **local-first desktop application** for understanding how AI coding agents consume resources.
 
-Most usage tools answer *how much was used?* Varnqor is being built to answer the next questions: where usage went, why a session consumed so much, how quickly resources are burning, and which patterns may have been avoidable.
+It is being built around one loop:
+
+```text
+OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> ADVISE -> OPTIMIZE
+```
 
 > **Control the burn.**
 
-## Current milestone — Waste Intelligence expansion
+## Current block — Forecasting + Advisor
 
-Varnqor now runs four independent, explainable rules against privacy-minimised Claude Code tool metadata:
+Varnqor can now move beyond retrospective usage and answer two new questions:
+
+> If this pace continues, what does the next two hours look like?
+
+> Given the evidence already collected, what should I inspect first?
+
+### M6 — Forecasting & Resource Pressure
+
+The forecast uses the latest rolling 60-minute activity rate and projects it forward with an intentionally simple **persistence model**. It also exposes an observed pace envelope from current pace, previous pace and the active-hour baseline.
+
+The envelope is **not** a statistical confidence interval, and the forecast is **not** a provider quota forecast.
+
+Runway stays disabled until a trusted limit source exists. Varnqor never turns a local baseline into fake quota remaining.
+
+See [docs/forecasting.md](docs/forecasting.md).
+
+### M7 — Advisor Engine
+
+Advisor consumes Burn Rate, Resource Pressure, Attribution and Waste Intelligence to produce prioritized, explainable recommendations.
+
+Current guidance can cover:
+
+```text
+resource pressure
+repeated file reads
+repeated search
+oversized tool responses
+repeated failed operations
+subagent fan-out under pressure
+dominant-session investigation
+```
+
+Advisor is **read-only**. It does not change prompts, models, files, agents or provider settings.
+
+See [docs/advisor.md](docs/advisor.md).
+
+## Waste Intelligence
+
+Varnqor currently runs four independent evidence rules:
 
 ```text
 Repeated File Reads
@@ -31,43 +73,27 @@ Oversized Tool Responses
 Repeated Failed Operations
 ```
 
-The rules share the same rolling 60-minute window as Burn Rate and Attribution. Each finding includes its evidence, confidence, severity and a rough context-volume estimate when result-size metadata is available.
+Tool inputs are fingerprinted locally with SHA-256 and discarded; raw commands, search queries, file contents and tool-result text are not stored.
 
-Varnqor deliberately does **not** publish a single Waste Score yet. Rules can overlap, and turning overlapping heuristic estimates into one number before defining deduplication and validation would be misleading.
+Varnqor deliberately does not publish a single Waste Score yet because heuristic signals can overlap.
 
-Tool inputs are not stored. Varnqor persists only a SHA-256 fingerprint of canonical tool input so exact repeated operations can be recognized locally without retaining raw Bash commands, Grep patterns or Write/Edit payloads.
-
-See [docs/waste-analysis.md](docs/waste-analysis.md), [docs/attribution.md](docs/attribution.md), [docs/burn-rate.md](docs/burn-rate.md), [docs/usage-engine.md](docs/usage-engine.md), and [docs/storage.md](docs/storage.md).
-
-## Product direction
-
-```text
-OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
-```
-
-## Desktop architecture
-
-- **Wails v2** — native desktop shell
-- **Go** — collectors, indexing and analytics
-- **React + TypeScript + Vite** — interface
-- **SQLite** — local incremental history
+See [docs/waste-analysis.md](docs/waste-analysis.md).
 
 ## Planned v0.1
 
 - [x] Project foundation
-- [x] Claude Code local detector
-- [x] Claude project/session discovery
-- [x] Desktop First Signal screen
-- [x] Claude usage event parser
+- [x] Claude Code detection and session discovery
 - [x] Deduplicated token accounting
-- [x] Model/session/project daily aggregation
 - [x] SQLite incremental history
 - [x] Hourly usage series
-- [x] Burn rate
-- [x] Deep session/project attribution
-- [x] Waste Analyzer v0.1 — repeated file reads
-- [x] Waste Intelligence — repeated search, large responses, repeated failures
-- [ ] Usage forecasting
+- [x] Burn Rate
+- [x] Deep session/project/model/subagent attribution
+- [x] Waste Intelligence v0.1
+- [x] Usage forecasting and Resource Pressure
+- [x] Read-only Advisor Engine
+- [ ] Trusted limit adapters + quota-aware runway
+- [ ] Live refresh / tray monitoring
+- [ ] First packaged pre-alpha release
 
 ## Local-first
 
@@ -79,61 +105,43 @@ No source-code uploads
 Read-only source analysis
 ```
 
-The local index stores resource and tool metadata required for analysis, not prompt, response, file or tool-result content. See [docs/privacy.md](docs/privacy.md).
+## Honest resource intelligence
 
-## Honest quota intelligence
+Varnqor distinguishes measurements and estimates. Provider limits will be labelled by source such as `official`, `observed`, `estimated`, or `configured`. An estimate must never be presented as an official quota.
 
-Varnqor distinguishes values that are `official`, `observed`, `estimated`, or `configured`. An estimate must never be presented as an official provider quota.
+## Desktop architecture
+
+- **Wails v2** — native desktop shell
+- **Go** — collectors, indexing and analytics
+- **React + TypeScript + Vite** — interface
+- **SQLite** — local incremental history
 
 ## Development
 
-Requirements:
-
-- Go 1.26+
-- Node.js 24+
-- Wails v2.17+
+Requirements: Go 1.26+, Node.js 24+, Wails v2.17+.
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
-cd frontend
-npm install
-cd ..
+cd frontend && npm install && cd ..
 wails dev
 ```
 
-Run core tests with:
+Run core tests:
 
 ```bash
 go test ./internal/...
 ```
 
-## Repository map
-
-```text
-.
-├── internal/
-│   ├── analytics/
-│   ├── domain/
-│   ├── indexer/
-│   ├── providers/claude/
-│   └── storage/
-├── frontend/src/
-├── docs/
-├── app.go
-├── main.go
-└── wails.json
-```
-
 ## Roadmap
 
 ```text
-v0.1  Claude Code observability
+v0.1  Claude Code resource intelligence
 v0.2  Provider abstraction + Codex
 v0.3  Gemini
-v0.4  Waste Intelligence
-v0.5  Forecasting & quota pressure
-v0.6  Advisor
-v0.7  Resource policies
+v0.4  Deeper Waste Intelligence
+v0.5  Trusted quota/runway adapters
+v0.6  Advisor refinement
+v0.7  Explicitly approved resource policies
 v0.8  Adapter SDK
 v0.9  Reports & share cards
 v1.0  AI resource control plane
@@ -141,7 +149,7 @@ v1.0  AI resource control plane
 
 ## Status
 
-**Pre-alpha.** APIs, data models and UI are expected to change.
+**Pre-alpha.** APIs, models and UI are expected to change.
 
 ## License
 
