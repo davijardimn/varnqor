@@ -60,7 +60,16 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
       - name: Build Windows desktop
         shell: pwsh
-        run: wails build -clean -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci"
-      - name: Smoke CLI version
+        run: wails build -clean -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci-${{ github.sha }}"
+      - name: Smoke CLI
         shell: pwsh
-        run: .\build\bin\varnqor-ci.exe version
+        run: |
+          .\build\bin\varnqor-ci.exe version
+          .\build\bin\varnqor-ci.exe help
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: varnqor-windows-amd64-${{ github.sha }}
+          path: build/bin/varnqor-ci.exe
+          if-no-files-found: error
+          retention-days: 7

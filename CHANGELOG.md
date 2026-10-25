@@ -10,8 +10,11 @@ All notable Varnqor changes are tracked here. The project uses semantic versioni
 - Live incremental desktop refresh with configurable interval.
 - Local Settings panel and first-run onboarding.
 - Visual Doctor diagnostics plus `varnqor doctor` and `varnqor status` CLI commands.
-- Windows desktop smoke builds in CI.
+- `varnqor analyze` and `varnqor forecast`, including JSON output for scripts.
+- Windows desktop smoke builds in CI and short-lived downloadable development artifacts.
 - Tag-driven Windows prerelease workflow.
+- Dependabot for Go, frontend npm, and GitHub Actions dependencies.
+- CODEOWNERS and repository verification documentation.
 
 ## 0.1.0-alpha.1 - planned
 
