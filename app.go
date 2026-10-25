@@ -116,6 +116,6 @@ func (a *App) GetSystemStatus() SystemStatus {
 		status.UsageError = fmt.Sprintf("query tool metadata: %v", err)
 		return status
 	}
-	status.Waste = analytics.AnalyzeRepeatedFileReads(toolCalls, currentStart, now)
+	status.Waste = analytics.AnalyzeWaste(toolCalls, currentStart, now)
 	return status
 }

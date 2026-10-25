@@ -3,6 +3,8 @@ package claude
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,16 +12,17 @@ import (
 )
 
 type ToolUseEvent struct {
-	ID           string
-	Timestamp    string
-	Name         string
-	Project      string
-	Session      string
-	Subagent     bool
-	FilePath     string
-	ReadOffset   int64
-	ReadLimit    int64
-	SourceOffset int64
+	ID               string
+	Timestamp        string
+	Name             string
+	Project          string
+	Session          string
+	Subagent         bool
+	FilePath         string
+	ReadOffset       int64
+	ReadLimit        int64
+	InputFingerprint string
+	SourceOffset     int64
 }
 
 type ToolResultEvent struct {
@@ -58,6 +61,7 @@ type toolBlock struct {
 type fileToolInput struct {
 	FilePath     string `json:"file_path"`
 	NotebookPath string `json:"notebook_path"`
+	Path         string `json:"path"`
 	Offset       int64  `json:"offset"`
 	Limit        int64  `json:"limit"`
 }
@@ -153,17 +157,21 @@ func parseToolLine(line []byte, file TranscriptFile, sourceOffset int64) ([]Tool
 			if filePath == "" {
 				filePath = input.NotebookPath
 			}
+			if filePath == "" {
+				filePath = input.Path
+			}
 			uses = append(uses, ToolUseEvent{
-				ID:           block.ID,
-				Timestamp:    envelope.Timestamp,
-				Name:         block.Name,
-				Project:      file.Project,
-				Session:      file.Session,
-				Subagent:     file.Subagent,
-				FilePath:     filePath,
-				ReadOffset:   input.Offset,
-				ReadLimit:    input.Limit,
-				SourceOffset: sourceOffset,
+				ID:               block.ID,
+				Timestamp:        envelope.Timestamp,
+				Name:             block.Name,
+				Project:          file.Project,
+				Session:          file.Session,
+				Subagent:         file.Subagent,
+				FilePath:         filePath,
+				ReadOffset:       input.Offset,
+				ReadLimit:        input.Limit,
+				InputFingerprint: fingerprintToolInput(block.Input),
+				SourceOffset:     sourceOffset,
 			})
 		case "tool_result":
 			if block.ToolUseID == "" {
@@ -200,6 +208,23 @@ func decodeToolBlocks(raw json.RawMessage) ([]toolBlock, error) {
 		return []toolBlock{block}, nil
 	}
 	return nil, nil
+}
+
+func fingerprintToolInput(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(canonical)
+	return hex.EncodeToString(digest[:])
 }
 
 func payloadBytes(raw json.RawMessage) int64 {

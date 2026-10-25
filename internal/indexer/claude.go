@@ -97,18 +97,19 @@ func SyncClaude(store *storage.Store, projectsPath string) (domain.SyncStats, er
 				return stats, fmt.Errorf("parse tool timestamp in %s: %w", file.Path, err)
 			}
 			toolUses = append(toolUses, storage.ToolUseRecord{
-				Provider:     claudeProvider,
-				ToolUseID:    event.ID,
-				Timestamp:    timestamp,
-				ToolName:     event.Name,
-				Project:      event.Project,
-				Session:      event.Session,
-				Subagent:     event.Subagent,
-				FilePath:     event.FilePath,
-				ReadOffset:   event.ReadOffset,
-				ReadLimit:    event.ReadLimit,
-				SourcePath:   file.Path,
-				SourceOffset: event.SourceOffset,
+				Provider:         claudeProvider,
+				ToolUseID:        event.ID,
+				Timestamp:        timestamp,
+				ToolName:         event.Name,
+				Project:          event.Project,
+				Session:          event.Session,
+				Subagent:         event.Subagent,
+				FilePath:         event.FilePath,
+				ReadOffset:       event.ReadOffset,
+				ReadLimit:        event.ReadLimit,
+				InputFingerprint: event.InputFingerprint,
+				SourcePath:       file.Path,
+				SourceOffset:     event.SourceOffset,
 			})
 		}
 		toolResults := make([]storage.ToolResultRecord, 0, len(chunk.ToolResults))

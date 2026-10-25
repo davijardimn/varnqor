@@ -56,3 +56,60 @@ func TestAnalyzeRepeatedFileReadsDifferentRangesDoNotMatch(t *testing.T) {
 		t.Fatalf("expected different read ranges not to match: %+v", report)
 	}
 }
+
+func TestAnalyzeWasteDetectsRepeatedSearch(t *testing.T) {
+	start := time.Date(2026, 10, 25, 18, 0, 0, 0, time.UTC)
+	calls := []domain.ToolCallObservation{
+		{Timestamp: start.Add(time.Minute), Name: "Grep", Project: "-repo", Session: "s1", InputFingerprint: "same", ResultBytes: 8000, SourcePath: "s1"},
+		{Timestamp: start.Add(5 * time.Minute), Name: "Grep", Project: "-repo", Session: "s1", InputFingerprint: "same", ResultBytes: 8000, SourcePath: "s1"},
+		{Timestamp: start.Add(8 * time.Minute), Name: "Grep", Project: "-repo", Session: "s1", InputFingerprint: "same", ResultBytes: 8000, SourcePath: "s1"},
+	}
+
+	report := AnalyzeWaste(calls, start, start.Add(time.Hour))
+	if report.RepeatedSearches != 2 {
+		t.Fatalf("expected 2 repeated searches, got %d", report.RepeatedSearches)
+	}
+	if len(report.Findings) != 1 || report.Findings[0].RuleID != "repeated-search" {
+		t.Fatalf("unexpected search findings: %+v", report.Findings)
+	}
+	if report.Findings[0].EstimatedTokens != 4000 {
+		t.Fatalf("expected 4000 estimated tokens, got %d", report.Findings[0].EstimatedTokens)
+	}
+}
+
+func TestAnalyzeWasteDetectsOversizedResponseUsingExcessOnly(t *testing.T) {
+	start := time.Date(2026, 10, 25, 18, 0, 0, 0, time.UTC)
+	calls := []domain.ToolCallObservation{{
+		Timestamp: start.Add(time.Minute), Name: "Read", Project: "-repo", Session: "s1",
+		FilePath: "/repo/large.go", ResultBytes: 40 * 1024, SourcePath: "s1",
+	}}
+
+	report := AnalyzeWaste(calls, start, start.Add(time.Hour))
+	if report.OversizedResponses != 1 {
+		t.Fatalf("expected one oversized response, got %d", report.OversizedResponses)
+	}
+	var found *domain.WasteFinding
+	for i := range report.Findings {
+		if report.Findings[i].RuleID == "oversized-tool-response" {
+			found = &report.Findings[i]
+		}
+	}
+	if found == nil || found.EstimatedTokens != 2048 {
+		t.Fatalf("expected 2048 excess-context tokens, got %+v", found)
+	}
+}
+
+func TestAnalyzeWasteDetectsRepeatedFailuresAndSuccessResets(t *testing.T) {
+	start := time.Date(2026, 10, 25, 18, 0, 0, 0, time.UTC)
+	calls := []domain.ToolCallObservation{
+		{Timestamp: start.Add(time.Minute), Name: "Bash", InputFingerprint: "cmd-a", IsError: true, ResultBytes: 400, SourcePath: "s1"},
+		{Timestamp: start.Add(4 * time.Minute), Name: "Bash", InputFingerprint: "cmd-a", IsError: true, ResultBytes: 400, SourcePath: "s1"},
+		{Timestamp: start.Add(6 * time.Minute), Name: "Bash", InputFingerprint: "cmd-a", IsError: false, ResultBytes: 100, SourcePath: "s1"},
+		{Timestamp: start.Add(8 * time.Minute), Name: "Bash", InputFingerprint: "cmd-a", IsError: true, ResultBytes: 400, SourcePath: "s1"},
+	}
+
+	report := AnalyzeWaste(calls, start, start.Add(time.Hour))
+	if report.RepeatedFailures != 1 {
+		t.Fatalf("expected one repeated failure before the success reset, got %d", report.RepeatedFailures)
+	}
+}

@@ -19,11 +19,7 @@ type TokenTotals = {
   total: number
 }
 
-type ModelUsage = {
-  model: string
-  calls: number
-  tokens: TokenTotals
-}
+type ModelUsage = { model: string; calls: number; tokens: TokenTotals }
 
 type UsageOverview = {
   date: string
@@ -39,11 +35,7 @@ type UsageOverview = {
   models: ModelUsage[] | null
 }
 
-type HourUsage = {
-  start: string
-  calls: number
-  tokens: TokenTotals
-}
+type HourUsage = { start: string; calls: number; tokens: TokenTotals }
 
 type BurnRate = {
   ready: boolean
@@ -80,20 +72,33 @@ type AttributionReport = {
 }
 
 type WasteFinding = {
-  ruleId: string
+  ruleId: 'repeated-file-read' | 'repeated-search' | 'oversized-tool-response' | 'repeated-failed-operation'
   title: string
   severity: 'low' | 'medium' | 'high'
   confidence: 'low' | 'medium'
   project: string
   session: string
-  filePath: string
+  toolName?: string
+  filePath?: string
+  target?: string
   readOffset?: number
   readLimit?: number
-  reads: number
-  repeats: number
-  repeatedBytes: number
+  reads?: number
+  occurrences?: number
+  repeats?: number
+  failures?: number
+  repeatedBytes?: number
+  resultBytes?: number
   estimatedTokens: number
   explanation: string
+}
+
+type WasteRuleSummary = {
+  ruleId: WasteFinding['ruleId']
+  label: string
+  findings: number
+  signals: number
+  estimatedTokens: number
 }
 
 type WasteReport = {
@@ -101,8 +106,13 @@ type WasteReport = {
   end?: string
   toolCalls: number
   repeatedReads: number
+  repeatedSearches: number
+  oversizedResponses: number
+  repeatedFailures: number
   estimatedRepeatedTokens: number
+  estimatedSignalTokens: number
   confidence: 'insufficient' | 'low' | 'medium'
+  rules: WasteRuleSummary[] | null
   findings: WasteFinding[] | null
 }
 
@@ -128,11 +138,5 @@ type VarnqorSystemStatus = {
 }
 
 interface Window {
-  go?: {
-    main?: {
-      App?: {
-        GetSystemStatus: () => Promise<VarnqorSystemStatus>
-      }
-    }
-  }
+  go?: { main?: { App?: { GetSystemStatus: () => Promise<VarnqorSystemStatus> } } }
 }

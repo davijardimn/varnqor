@@ -20,33 +20,22 @@ Most usage tools answer *how much was used?* Varnqor is being built to answer th
 
 > **Control the burn.**
 
-## Current milestone — Waste Analyzer v0.1
+## Current milestone — Waste Intelligence expansion
 
-Varnqor can now move from **where usage came from** to a first explainable signal for **why some of that activity may have been avoidable**.
-
-The first Waste Intelligence rule detects exact file reads repeated within a short window:
+Varnqor now runs four independent, explainable rules against privacy-minimised Claude Code tool metadata:
 
 ```text
-same transcript
-same file
-same offset / limit
-within 15 minutes
-no observed write/edit in between
+Repeated File Reads
+Repeated Grep / Glob searches
+Oversized Tool Responses
+Repeated Failed Operations
 ```
 
-For matching reads, Varnqor stores only privacy-minimised tool metadata and the byte length of returned tool results. It never stores the file content or tool-result text.
+The rules share the same rolling 60-minute window as Burn Rate and Attribution. Each finding includes its evidence, confidence, severity and a rough context-volume estimate when result-size metadata is available.
 
-The desktop can show:
+Varnqor deliberately does **not** publish a single Waste Score yet. Rules can overlap, and turning overlapping heuristic estimates into one number before defining deduplication and validation would be misleading.
 
-```text
-repeated-read findings
-number of repeated reads
-rough repeated-context token estimate
-per-finding confidence
-file / project / session evidence
-```
-
-The token estimate is explicitly heuristic (`returned bytes / 4`) and is never presented as provider-reported usage. A repeated read can be legitimate, so findings are described as **potential repeated context**, not factual waste.
+Tool inputs are not stored. Varnqor persists only a SHA-256 fingerprint of canonical tool input so exact repeated operations can be recognized locally without retaining raw Bash commands, Grep patterns or Write/Edit payloads.
 
 See [docs/waste-analysis.md](docs/waste-analysis.md), [docs/attribution.md](docs/attribution.md), [docs/burn-rate.md](docs/burn-rate.md), [docs/usage-engine.md](docs/usage-engine.md), and [docs/storage.md](docs/storage.md).
 
@@ -77,7 +66,7 @@ OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
 - [x] Burn rate
 - [x] Deep session/project attribution
 - [x] Waste Analyzer v0.1 — repeated file reads
-- [ ] Additional waste rules
+- [x] Waste Intelligence — repeated search, large responses, repeated failures
 - [ ] Usage forecasting
 
 ## Local-first

@@ -8,21 +8,22 @@ import (
 	"github.com/davijardimn/varnqor/internal/domain"
 )
 
-const toolIndexVersion = "1"
+const toolIndexVersion = "2"
 
 type ToolUseRecord struct {
-	Provider     string
-	ToolUseID    string
-	Timestamp    time.Time
-	ToolName     string
-	Project      string
-	Session      string
-	Subagent     bool
-	FilePath     string
-	ReadOffset   int64
-	ReadLimit    int64
-	SourcePath   string
-	SourceOffset int64
+	Provider         string
+	ToolUseID        string
+	Timestamp        time.Time
+	ToolName         string
+	Project          string
+	Session          string
+	Subagent         bool
+	FilePath         string
+	ReadOffset       int64
+	ReadLimit        int64
+	InputFingerprint string
+	SourcePath       string
+	SourceOffset     int64
 }
 
 type ToolResultRecord struct {
@@ -50,6 +51,7 @@ func (s *Store) EnsureToolIndex(provider string) (bool, error) {
 			file_path TEXT NOT NULL,
 			read_offset INTEGER NOT NULL DEFAULT 0,
 			read_limit INTEGER NOT NULL DEFAULT 0,
+			input_fingerprint TEXT NOT NULL DEFAULT '',
 			result_bytes INTEGER NOT NULL DEFAULT 0,
 			is_error INTEGER NOT NULL DEFAULT 0,
 			source_path TEXT NOT NULL,
@@ -65,6 +67,9 @@ func (s *Store) EnsureToolIndex(provider string) (bool, error) {
 		if _, err := s.db.Exec(statement); err != nil {
 			return false, fmt.Errorf("create tool index: %w", err)
 		}
+	}
+	if err := s.ensureToolFingerprintColumn(); err != nil {
+		return false, err
 	}
 
 	key := "tool_index_version:" + provider
@@ -106,6 +111,37 @@ func (s *Store) EnsureToolIndex(provider string) (bool, error) {
 	return sources > 0, nil
 }
 
+func (s *Store) ensureToolFingerprintColumn() error {
+	rows, err := s.db.Query(`PRAGMA table_info(tool_calls)`)
+	if err != nil {
+		return fmt.Errorf("inspect tool index schema: %w", err)
+	}
+	defer rows.Close()
+
+	found := false
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return fmt.Errorf("scan tool index schema: %w", err)
+		}
+		if name == "input_fingerprint" {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	if _, err := s.db.Exec(`ALTER TABLE tool_calls ADD COLUMN input_fingerprint TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("add tool input fingerprint: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) ApplyToolEvents(uses []ToolUseRecord, results []ToolResultRecord) error {
 	if len(uses) == 0 && len(results) == 0 {
 		return nil
@@ -119,8 +155,8 @@ func (s *Store) ApplyToolEvents(uses []ToolUseRecord, results []ToolResultRecord
 
 	const upsertUse = `INSERT INTO tool_calls (
 		provider, tool_use_id, timestamp_ms, tool_name, project, session, subagent,
-		file_path, read_offset, read_limit, result_bytes, is_error, source_path, source_offset
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+		file_path, read_offset, read_limit, input_fingerprint, result_bytes, is_error, source_path, source_offset
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
 	ON CONFLICT(provider, tool_use_id) DO UPDATE SET
 		timestamp_ms = excluded.timestamp_ms,
 		tool_name = excluded.tool_name,
@@ -130,6 +166,7 @@ func (s *Store) ApplyToolEvents(uses []ToolUseRecord, results []ToolResultRecord
 		file_path = excluded.file_path,
 		read_offset = excluded.read_offset,
 		read_limit = excluded.read_limit,
+		input_fingerprint = excluded.input_fingerprint,
 		source_path = excluded.source_path,
 		source_offset = excluded.source_offset`
 
@@ -140,7 +177,7 @@ func (s *Store) ApplyToolEvents(uses []ToolUseRecord, results []ToolResultRecord
 		if _, err := tx.Exec(upsertUse,
 			record.Provider, record.ToolUseID, record.Timestamp.UnixMilli(), record.ToolName,
 			record.Project, record.Session, boolInt(record.Subagent), record.FilePath,
-			record.ReadOffset, record.ReadLimit, record.SourcePath, record.SourceOffset,
+			record.ReadOffset, record.ReadLimit, record.InputFingerprint, record.SourcePath, record.SourceOffset,
 		); err != nil {
 			return fmt.Errorf("upsert tool use: %w", err)
 		}
@@ -170,7 +207,7 @@ func (s *Store) ResetToolProvider(provider string) error {
 func (s *Store) ToolCalls(provider string, start, end time.Time) ([]domain.ToolCallObservation, error) {
 	rows, err := s.db.Query(`SELECT
 		tool_use_id, timestamp_ms, tool_name, project, session, subagent,
-		file_path, read_offset, read_limit, result_bytes, is_error, source_path
+		file_path, read_offset, read_limit, input_fingerprint, result_bytes, is_error, source_path
 	FROM tool_calls
 	WHERE provider = ? AND timestamp_ms >= ? AND timestamp_ms < ?
 	ORDER BY timestamp_ms ASC, source_offset ASC`, provider, start.UnixMilli(), end.UnixMilli())
@@ -186,7 +223,8 @@ func (s *Store) ToolCalls(provider string, start, end time.Time) ([]domain.ToolC
 		var subagent, isError int
 		if err := rows.Scan(
 			&call.ToolUseID, &timestampMS, &call.Name, &call.Project, &call.Session, &subagent,
-			&call.FilePath, &call.ReadOffset, &call.ReadLimit, &call.ResultBytes, &isError, &call.SourcePath,
+			&call.FilePath, &call.ReadOffset, &call.ReadLimit, &call.InputFingerprint,
+			&call.ResultBytes, &isError, &call.SourcePath,
 		); err != nil {
 			return nil, err
 		}

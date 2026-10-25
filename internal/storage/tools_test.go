@@ -23,7 +23,7 @@ func TestToolMetadataRoundTrip(t *testing.T) {
 	uses := []ToolUseRecord{{
 		Provider: "claude", ToolUseID: "toolu_1", Timestamp: now, ToolName: "Read",
 		Project: "-repo", Session: "s1", FilePath: "/repo/auth.go", ReadOffset: 1, ReadLimit: 200,
-		SourcePath: "/transcripts/s1.jsonl", SourceOffset: 100,
+		InputFingerprint: "abc123", SourcePath: "/transcripts/s1.jsonl", SourceOffset: 100,
 	}}
 	results := []ToolResultRecord{{
 		Provider: "claude", ToolUseID: "toolu_1", ResultBytes: 4096,
@@ -41,7 +41,7 @@ func TestToolMetadataRoundTrip(t *testing.T) {
 		t.Fatalf("expected 1 tool call, got %d", len(calls))
 	}
 	call := calls[0]
-	if call.Name != "Read" || call.FilePath != "/repo/auth.go" || call.ResultBytes != 4096 {
+	if call.Name != "Read" || call.FilePath != "/repo/auth.go" || call.ResultBytes != 4096 || call.InputFingerprint != "abc123" {
 		t.Fatalf("unexpected tool metadata: %+v", call)
 	}
 	if call.SourcePath != "/transcripts/s1.jsonl" {

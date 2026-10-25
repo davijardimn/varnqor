@@ -1,49 +1,21 @@
 import { useEffect, useState } from 'react'
 
-const emptyTokens: TokenTotals = {
-  input: 0,
-  output: 0,
-  cacheCreation: 0,
-  cacheRead: 0,
-  cacheCreation5m: 0,
-  cacheCreation1h: 0,
-  total: 0,
-}
+const emptyTokens: TokenTotals = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, cacheCreation5m: 0, cacheCreation1h: 0, total: 0 }
 
 const emptyStatus: VarnqorSystemStatus = {
-  claude: {
-    detected: false,
-    binaryDetected: false,
-    dataDetected: false,
-    claudeHome: '',
-    projectsPath: '',
-    projects: 0,
-    sessions: 0,
-  },
-  usage: {
-    date: '', calls: 0, sessions: 0, projects: 0, filesScanned: 0, parseWarnings: 0,
-    cacheReadShare: 0, tokens: emptyTokens, models: [],
-  },
+  claude: { detected: false, binaryDetected: false, dataDetected: false, claudeHome: '', projectsPath: '', projects: 0, sessions: 0 },
+  usage: { date: '', calls: 0, sessions: 0, projects: 0, filesScanned: 0, parseWarnings: 0, cacheReadShare: 0, tokens: emptyTokens, models: [] },
   hourly: [],
-  burn: {
-    ready: false, currentPerHour: 0, previousPerHour: 0, baselinePerHour: 0, ratio: 0,
-    changePercent: 0, trend: 'idle', level: 'learning', confidence: 'insufficient', baselineSamples: 0,
-  },
-  attribution: {
-    calls: 0, tokens: emptyTokens, projects: [], sessions: [], models: [], agents: [],
-  },
-  waste: {
-    toolCalls: 0, repeatedReads: 0, estimatedRepeatedTokens: 0, confidence: 'insufficient', findings: [],
-  },
-  sync: {
-    filesSeen: 0, filesChanged: 0, bytesIndexed: 0, recordsObserved: 0, parseWarnings: 0, rebuilt: false,
-  },
+  burn: { ready: false, currentPerHour: 0, previousPerHour: 0, baselinePerHour: 0, ratio: 0, changePercent: 0, trend: 'idle', level: 'learning', confidence: 'insufficient', baselineSamples: 0 },
+  attribution: { calls: 0, tokens: emptyTokens, projects: [], sessions: [], models: [], agents: [] },
+  waste: { toolCalls: 0, repeatedReads: 0, repeatedSearches: 0, oversizedResponses: 0, repeatedFailures: 0, estimatedRepeatedTokens: 0, estimatedSignalTokens: 0, confidence: 'insufficient', rules: [], findings: [] },
+  sync: { filesSeen: 0, filesChanged: 0, bytesIndexed: 0, recordsObserved: 0, parseWarnings: 0, rebuilt: false },
   storageReady: false,
 }
 
 const compactNumber = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 2 })
-
 function formatTokens(value: number) { return compactNumber.format(value) }
+function formatBytes(value: number) { return `${formatTokens(value)}B` }
 function formatDate(value?: string) {
   if (!value) return 'No activity today'
   const date = new Date(value)
@@ -71,38 +43,43 @@ function shortSession(value?: string) {
   if (!value) return 'unknown'
   return value.length > 12 ? `${value.slice(0, 8)}…` : value
 }
-function shortPath(value: string) {
+function shortPath(value?: string) {
+  if (!value) return ''
   const parts = value.replace(/\\/g, '/').split('/').filter(Boolean)
-  if (parts.length <= 2) return value || 'unknown file'
+  if (parts.length <= 2) return value
   return parts.slice(-2).join('/')
 }
 function metric(label: string, value: number, detail: string) {
   return <article className="metric" key={label}><span className="label">{label}</span><strong>{formatTokens(value)}</strong><small>{detail}</small></article>
 }
+function findingSubject(finding: WasteFinding) {
+  if (finding.filePath) return shortPath(finding.filePath)
+  if (finding.target) return finding.target
+  return finding.toolName || finding.title
+}
+function findingSignal(finding: WasteFinding) {
+  switch (finding.ruleId) {
+    case 'repeated-file-read': return `${finding.reads ?? finding.occurrences ?? 0} reads · ${finding.repeats ?? 0} repeated`
+    case 'repeated-search': return `${finding.occurrences ?? 0} searches · ${finding.repeats ?? 0} repeated`
+    case 'oversized-tool-response': return `${formatBytes(finding.resultBytes ?? 0)} returned`
+    case 'repeated-failed-operation': return `${finding.failures ?? 0} failures · ${finding.repeats ?? 0} repeated`
+  }
+}
 
 function DriverList({ title, items, kind }: { title: string; items: AttributionItem[]; kind: 'project' | 'session' | 'model' | 'agent' }) {
-  return (
-    <div className="driverGroup">
-      <div className="driverTitle"><span className="label">{title}</span><span>{items.length}</span></div>
-      {items.length === 0 ? <p className="empty">No activity in this window.</p> : (
-        <div className="driverRows">
-          {items.slice(0, kind === 'agent' ? 2 : 4).map((item) => {
-            const label = kind === 'session' ? shortSession(item.session || item.label) : item.label
-            return (
-              <div className="driverRow" key={item.key} title={kind === 'session' ? `${item.project} · ${item.session}` : item.label}>
-                <div className="driverCopy">
-                  <strong>{label}</strong>
-                  <small>{kind === 'session' ? `${item.project} · ` : ''}{item.calls} calls</small>
-                </div>
-                <div className="driverNumbers"><strong>{formatTokens(item.tokens.total)}</strong><span>{item.sharePercent.toFixed(1)}%</span></div>
-                <div className="driverTrack"><div style={{ width: `${Math.min(100, item.sharePercent)}%` }} /></div>
-              </div>
-            )
-          })}
+  return <div className="driverGroup">
+    <div className="driverTitle"><span className="label">{title}</span><span>{items.length}</span></div>
+    {items.length === 0 ? <p className="empty">No activity in this window.</p> : <div className="driverRows">
+      {items.slice(0, kind === 'agent' ? 2 : 4).map((item) => {
+        const label = kind === 'session' ? shortSession(item.session || item.label) : item.label
+        return <div className="driverRow" key={item.key} title={kind === 'session' ? `${item.project} · ${item.session}` : item.label}>
+          <div className="driverCopy"><strong>{label}</strong><small>{kind === 'session' ? `${item.project} · ` : ''}{item.calls} calls</small></div>
+          <div className="driverNumbers"><strong>{formatTokens(item.tokens.total)}</strong><span>{item.sharePercent.toFixed(1)}%</span></div>
+          <div className="driverTrack"><div style={{ width: `${Math.min(100, item.sharePercent)}%` }} /></div>
         </div>
-      )}
-    </div>
-  )
+      })}
+    </div>}
+  </div>
 }
 
 export default function App() {
@@ -127,6 +104,7 @@ export default function App() {
   const attribution = status.attribution
   const waste = status.waste
   const wasteFindings = waste.findings ?? []
+  const wasteRules = waste.rules ?? []
   const projects = attribution.projects ?? []
   const sessions = attribution.sessions ?? []
   const burnModels = attribution.models ?? []
@@ -136,132 +114,57 @@ export default function App() {
   const maxHourly = Math.max(1, ...hourly.map((bucket) => bucket.tokens.total))
   const meterWidth = burn.ready ? Math.min(100, Math.max(2, (burn.ratio / 2.5) * 100)) : 0
 
-  const headline = loading
-    ? 'Indexing local usage…'
-    : status.usageError
-      ? 'Local index needs attention.'
-      : wasteFindings.length > 0
-        ? 'Potential repeat overhead detected.'
-        : burn.ready
-          ? 'Burn drivers are visible.'
-          : hasUsage
-            ? 'Learning your usage baseline.'
-            : claude.detected
-              ? 'Claude Code detected.'
-              : 'Claude Code not detected.'
+  const headline = loading ? 'Indexing local usage…' : status.usageError ? 'Local index needs attention.' : wasteFindings.length > 0 ? 'Waste signals are explainable.' : burn.ready ? 'Burn drivers are visible.' : hasUsage ? 'Learning your usage baseline.' : claude.detected ? 'Claude Code detected.' : 'Claude Code not detected.'
 
-  return (
-    <main className="shell">
-      <header className="topbar">
-        <div><div className="wordmark">VARNQOR</div><div className="tagline">Resource intelligence for AI coding agents.</div></div>
-        <div className="milestone">M5 · WASTE ANALYZER</div>
-      </header>
+  return <main className="shell">
+    <header className="topbar"><div><div className="wordmark">VARNQOR</div><div className="tagline">Resource intelligence for AI coding agents.</div></div><div className="milestone">M5.1 · WASTE INTELLIGENCE</div></header>
 
-      <section className="hero">
-        <div className="eyebrow">CLAUDE CODE · TODAY</div>
-        <h1>{headline}</h1>
-        <p>Varnqor now inspects privacy-safe tool metadata to identify exact file reads repeated in a short window. Findings are heuristic and explainable: they indicate possible repeated context, not proven waste.</p>
-        {status.usageError && <div className="warning">{status.usageError}</div>}
-      </section>
+    <section className="hero">
+      <div className="eyebrow">CLAUDE CODE · TODAY</div><h1>{headline}</h1>
+      <p>Four independent rules now inspect privacy-minimised tool metadata: repeated reads, repeated search, oversized responses and repeated failed operations. Findings are signals, not proof of waste.</p>
+      {status.usageError && <div className="warning">{status.usageError}</div>}
+    </section>
 
-      <section className="grid" aria-label="Token usage today">
-        {metric('INPUT', usage.tokens.input, 'Uncached input tokens')}
-        {metric('OUTPUT', usage.tokens.output, 'Generated output tokens')}
-        {metric('CACHE READ', usage.tokens.cacheRead, 'Input served from cache')}
-        {metric('CACHE WRITE', usage.tokens.cacheCreation, 'Input written to cache')}
-      </section>
+    <section className="grid" aria-label="Token usage today">
+      {metric('INPUT', usage.tokens.input, 'Uncached input tokens')}{metric('OUTPUT', usage.tokens.output, 'Generated output tokens')}{metric('CACHE READ', usage.tokens.cacheRead, 'Input served from cache')}{metric('CACHE WRITE', usage.tokens.cacheCreation, 'Input written to cache')}
+    </section>
 
-      <section className="summary" aria-label="Usage summary">
-        <div className="summaryItem"><span className="label">TOTAL ACTIVITY</span><strong>{formatTokens(usage.tokens.total)}</strong></div>
-        <div className="summaryItem"><span className="label">API CALLS</span><strong>{usage.calls}</strong></div>
-        <div className="summaryItem"><span className="label">ACTIVE SESSIONS</span><strong>{usage.sessions}</strong></div>
-        <div className="summaryItem"><span className="label">CACHE READ SHARE</span><strong>{usage.cacheReadShare.toFixed(1)}%</strong></div>
-      </section>
+    <section className="summary" aria-label="Usage summary">
+      <div className="summaryItem"><span className="label">TOTAL ACTIVITY</span><strong>{formatTokens(usage.tokens.total)}</strong></div><div className="summaryItem"><span className="label">API CALLS</span><strong>{usage.calls}</strong></div><div className="summaryItem"><span className="label">ACTIVE SESSIONS</span><strong>{usage.sessions}</strong></div><div className="summaryItem"><span className="label">CACHE READ SHARE</span><strong>{usage.cacheReadShare.toFixed(1)}%</strong></div>
+    </section>
 
-      <section className={`burnPanel burn-${burn.level}`} aria-label="Burn rate">
-        <div className="burnPrimary">
-          <span className="label">CURRENT BURN RATE</span>
-          <div className="burnHeadline"><strong>{burn.ready ? `${burn.ratio.toFixed(2)}×` : '—'}</strong><span>{burn.ready ? burn.level.toUpperCase() : 'LEARNING'}</span></div>
-          <div className="burnMeter" aria-hidden="true"><div className="burnMeterFill" style={{ width: `${meterWidth}%` }} /><i className="burnBaselineMarker" /></div>
-          <p>{burn.ready ? `Current activity is ${Math.abs((burn.ratio - 1) * 100).toFixed(0)}% ${burn.ratio >= 1 ? 'above' : 'below'} the active-hour baseline.` : `Need at least 2 completed active hours. ${burn.baselineSamples} available so far.`}</p>
-        </div>
-        <div className="burnFacts">
-          <div><span className="label">LAST 60 MIN</span><strong>{formatTokens(burn.currentPerHour)}</strong></div>
-          <div><span className="label">PREVIOUS 60 MIN</span><strong>{formatTokens(burn.previousPerHour)}</strong></div>
-          <div><span className="label">ACTIVE BASELINE</span><strong>{burn.baselinePerHour ? formatTokens(burn.baselinePerHour) : '—'}</strong></div>
-          <div><span className="label">TREND</span><strong>{trendLabel(burn.trend)}</strong><small>{burn.previousPerHour > 0 ? signedPercent(burn.changePercent) : 'No prior comparison'}</small></div>
-          <div><span className="label">CONFIDENCE</span><strong>{burn.confidence.toUpperCase()}</strong><small>{burn.baselineSamples} baseline samples</small></div>
-        </div>
-      </section>
+    <section className={`burnPanel burn-${burn.level}`} aria-label="Burn rate">
+      <div className="burnPrimary"><span className="label">CURRENT BURN RATE</span><div className="burnHeadline"><strong>{burn.ready ? `${burn.ratio.toFixed(2)}×` : '—'}</strong><span>{burn.ready ? burn.level.toUpperCase() : 'LEARNING'}</span></div><div className="burnMeter" aria-hidden="true"><div className="burnMeterFill" style={{ width: `${meterWidth}%` }} /><i className="burnBaselineMarker" /></div><p>{burn.ready ? `Current activity is ${Math.abs((burn.ratio - 1) * 100).toFixed(0)}% ${burn.ratio >= 1 ? 'above' : 'below'} the active-hour baseline.` : `Need at least 2 completed active hours. ${burn.baselineSamples} available so far.`}</p></div>
+      <div className="burnFacts"><div><span className="label">LAST 60 MIN</span><strong>{formatTokens(burn.currentPerHour)}</strong></div><div><span className="label">PREVIOUS 60 MIN</span><strong>{formatTokens(burn.previousPerHour)}</strong></div><div><span className="label">ACTIVE BASELINE</span><strong>{burn.baselinePerHour ? formatTokens(burn.baselinePerHour) : '—'}</strong></div><div><span className="label">TREND</span><strong>{trendLabel(burn.trend)}</strong><small>{burn.previousPerHour > 0 ? signedPercent(burn.changePercent) : 'No prior comparison'}</small></div><div><span className="label">CONFIDENCE</span><strong>{burn.confidence.toUpperCase()}</strong><small>{burn.baselineSamples} baseline samples</small></div></div>
+    </section>
 
-      <section className="attributionPanel" aria-label="Burn attribution">
-        <div className="attributionHeader">
-          <div><span className="label">BURN DRIVERS · LAST 60 MIN</span><h2>Where the current activity came from.</h2></div>
-          <div className="attributionTotal"><span>{attribution.calls} calls</span><strong>{formatTokens(attribution.tokens.total)}</strong></div>
-        </div>
-        <div className="driverGrid">
-          <DriverList title="PROJECTS" items={projects} kind="project" />
-          <DriverList title="SESSIONS" items={sessions} kind="session" />
-          <DriverList title="MODELS" items={burnModels} kind="model" />
-          <DriverList title="AGENT SPLIT" items={agents} kind="agent" />
-        </div>
-      </section>
+    <section className="attributionPanel" aria-label="Burn attribution">
+      <div className="attributionHeader"><div><span className="label">BURN DRIVERS · LAST 60 MIN</span><h2>Where the current activity came from.</h2></div><div className="attributionTotal"><span>{attribution.calls} calls</span><strong>{formatTokens(attribution.tokens.total)}</strong></div></div>
+      <div className="driverGrid"><DriverList title="PROJECTS" items={projects} kind="project" /><DriverList title="SESSIONS" items={sessions} kind="session" /><DriverList title="MODELS" items={burnModels} kind="model" /><DriverList title="AGENT SPLIT" items={agents} kind="agent" /></div>
+    </section>
 
-      <section className="wastePanel" aria-label="Waste analysis">
-        <div className="wasteHeader">
-          <div>
-            <span className="label">WASTE ANALYZER · LAST 60 MIN</span>
-            <h2>Repeated file reads.</h2>
-            <p>Exact Read target + range repeated within 15 minutes, with no observed write/edit to that file in the same transcript.</p>
-          </div>
-          <div className="wasteSummary">
-            <span>POTENTIAL REPEATED CONTEXT</span>
-            <strong>{waste.estimatedRepeatedTokens > 0 ? `~${formatTokens(waste.estimatedRepeatedTokens)}` : '—'}</strong>
-            <small>estimated tokens · {waste.confidence.toUpperCase()} confidence</small>
-          </div>
-        </div>
+    <section className="wastePanel" aria-label="Waste analysis">
+      <div className="wasteHeader"><div><span className="label">WASTE INTELLIGENCE · LAST 60 MIN</span><h2>Evidence before score.</h2><p>Signals are independently explainable and may overlap. Varnqor does not yet collapse them into a single Waste Score.</p></div><div className="wasteSummary"><span>ESTIMATED SIGNAL CONTEXT</span><strong>{waste.estimatedSignalTokens > 0 ? `~${formatTokens(waste.estimatedSignalTokens)}` : '—'}</strong><small>heuristic tokens · overlap possible · {waste.confidence.toUpperCase()}</small></div></div>
 
-        {wasteFindings.length === 0 ? (
-          <div className="wasteEmpty">No repeated-read pattern matched the current rule · {waste.toolCalls} tool calls analyzed.</div>
-        ) : (
-          <div className="wasteRows">
-            {wasteFindings.slice(0, 4).map((finding) => (
-              <div className="wasteRow" key={`${finding.project}:${finding.session}:${finding.filePath}:${finding.readOffset ?? 0}:${finding.readLimit ?? 0}`} title={finding.filePath}>
-                <div className="wasteFile"><strong>{shortPath(finding.filePath)}</strong><small>{finding.project} · {shortSession(finding.session)}</small></div>
-                <div><span className="label">READS</span><strong>{finding.reads}</strong><small>{finding.repeats} repeated</small></div>
-                <div><span className="label">EST. CONTEXT</span><strong>{finding.estimatedTokens > 0 ? `~${formatTokens(finding.estimatedTokens)}` : 'n/a'}</strong><small>tokens</small></div>
-                <div><span className="label">CONFIDENCE</span><strong>{finding.confidence.toUpperCase()}</strong><small>{finding.severity.toUpperCase()} signal</small></div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="wasteDisclaimer">Heuristic only · token estimate = returned tool-result bytes ÷ 4 · no tool-result content is stored.</div>
-      </section>
+      <div className="wasteRuleGrid">
+        {wasteRules.map((rule) => <div className={`wasteRule ${rule.findings > 0 ? 'wasteRuleActive' : ''}`} key={rule.ruleId}><span>{rule.label}</span><strong>{rule.signals}</strong><small>{rule.findings} findings{rule.estimatedTokens > 0 ? ` · ~${formatTokens(rule.estimatedTokens)}` : ''}</small></div>)}
+      </div>
 
-      <section className="chartPanel" aria-label="Hourly token activity">
-        <div className="panelHeader"><span className="label">TOKEN ACTIVITY · HOURLY</span><span>{formatTokens(usage.tokens.total)} today</span></div>
-        <div className="bars">
-          {hourly.map((bucket, index) => {
-            const height = bucket.tokens.total === 0 ? 2 : Math.max(5, (bucket.tokens.total / maxHourly) * 100)
-            return <div className="barColumn" key={bucket.start} title={`${hourLabel(bucket.start)} · ${formatTokens(bucket.tokens.total)} tokens`}><div className="barTrack"><div className="barFill" style={{ height: `${height}%` }} /></div><span>{index % 3 === 0 ? hourLabel(bucket.start) : ''}</span></div>
-          })}
-        </div>
-      </section>
+      {wasteFindings.length === 0 ? <div className="wasteEmpty">No current rule matched · {waste.toolCalls} tool calls analyzed.</div> : <div className="wasteRows">
+        {wasteFindings.slice(0, 6).map((finding, index) => <div className="wasteRow" key={`${finding.ruleId}:${finding.project}:${finding.session}:${finding.toolName ?? ''}:${finding.filePath ?? ''}:${index}`} title={finding.explanation}>
+          <div className="wasteFile"><strong>{findingSubject(finding)}</strong><small>{finding.title} · {finding.project || 'unknown'} · {shortSession(finding.session)}</small></div>
+          <div><span className="label">SIGNAL</span><strong>{findingSignal(finding)}</strong><small>{finding.toolName || finding.ruleId}</small></div>
+          <div><span className="label">EST. CONTEXT</span><strong>{finding.estimatedTokens > 0 ? `~${formatTokens(finding.estimatedTokens)}` : 'n/a'}</strong><small>tokens</small></div>
+          <div><span className="label">CONFIDENCE</span><strong>{finding.confidence.toUpperCase()}</strong><small>{finding.severity.toUpperCase()} signal</small></div>
+        </div>)}
+      </div>}
+      <div className="wasteDisclaimer">Heuristic only · result-volume estimates use bytes ÷ 4 · tool inputs are fingerprinted, not stored · no Waste Score yet.</div>
+    </section>
 
-      <section className="lowerGrid">
-        <div className="panel">
-          <div className="panelHeader"><span className="label">MODELS OBSERVED · TODAY</span><span>{models.length}</span></div>
-          {models.length === 0 ? <p className="empty">No token-bearing Claude calls found for today.</p> : <div className="models">{models.slice(0, 4).map((model) => <div className="modelRow" key={model.model}><div><strong>{model.model}</strong><small>{model.calls} calls</small></div><span>{formatTokens(model.tokens.total)}</span></div>)}</div>}
-        </div>
-        <div className="panel signalPanel">
-          <span className="label">LOCAL INDEX</span><strong>{status.storageReady ? 'SQLITE READY' : 'UNAVAILABLE'}</strong>
-          <p>{usage.filesScanned} sources · {status.sync.filesChanged} changed · {formatTokens(status.sync.bytesIndexed)} bytes indexed</p>
-          <p>{formatDate(usage.lastActivity)} · {usage.parseWarnings} parse warnings</p>
-          <div className="privacy">{status.sync.rebuilt ? 'INDEX REBUILT · VERIFIED' : 'LOCAL-FIRST · READ-ONLY'}</div>
-        </div>
-      </section>
+    <section className="chartPanel" aria-label="Hourly token activity"><div className="panelHeader"><span className="label">TOKEN ACTIVITY · HOURLY</span><span>{formatTokens(usage.tokens.total)} today</span></div><div className="bars">{hourly.map((bucket, index) => { const height = bucket.tokens.total === 0 ? 2 : Math.max(5, (bucket.tokens.total / maxHourly) * 100); return <div className="barColumn" key={bucket.start} title={`${hourLabel(bucket.start)} · ${formatTokens(bucket.tokens.total)} tokens`}><div className="barTrack"><div className="barFill" style={{ height: `${height}%` }} /></div><span>{index % 3 === 0 ? hourLabel(bucket.start) : ''}</span></div> })}</div></section>
 
-      <footer>Control the burn. <span>v0.1 pre-alpha</span></footer>
-    </main>
-  )
+    <section className="lowerGrid"><div className="panel"><div className="panelHeader"><span className="label">MODELS OBSERVED · TODAY</span><span>{models.length}</span></div>{models.length === 0 ? <p className="empty">No token-bearing Claude calls found for today.</p> : <div className="models">{models.slice(0, 4).map((model) => <div className="modelRow" key={model.model}><div><strong>{model.model}</strong><small>{model.calls} calls</small></div><span>{formatTokens(model.tokens.total)}</span></div>)}</div>}</div><div className="panel signalPanel"><span className="label">LOCAL INDEX</span><strong>{status.storageReady ? 'SQLITE READY' : 'UNAVAILABLE'}</strong><p>{usage.filesScanned} sources · {status.sync.filesChanged} changed · {formatTokens(status.sync.bytesIndexed)} bytes indexed</p><p>{formatDate(usage.lastActivity)} · {usage.parseWarnings} parse warnings</p><div className="privacy">{status.sync.rebuilt ? 'INDEX REBUILT · VERIFIED' : 'LOCAL-FIRST · READ-ONLY'}</div></div></section>
+
+    <footer>Control the burn. <span>v0.1 pre-alpha</span></footer>
+  </main>
 }
