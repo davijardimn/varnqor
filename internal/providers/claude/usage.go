@@ -12,53 +12,33 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/davijardimn/varnqor/internal/domain"
 )
 
-type TokenTotals struct {
-	Input           int64 `json:"input"`
-	Output          int64 `json:"output"`
-	CacheCreation   int64 `json:"cacheCreation"`
-	CacheRead       int64 `json:"cacheRead"`
-	CacheCreation5m int64 `json:"cacheCreation5m"`
-	CacheCreation1h int64 `json:"cacheCreation1h"`
-	Total           int64 `json:"total"`
-}
-
-type UsageCall struct {
-	MessageID  string      `json:"messageId"`
-	RequestID  string      `json:"requestId"`
-	Timestamp  time.Time   `json:"timestamp"`
-	Model      string      `json:"model"`
-	Project    string      `json:"project"`
-	Session    string      `json:"session"`
-	Subagent   bool        `json:"subagent"`
-	StopReason string      `json:"stopReason"`
-	Tokens     TokenTotals `json:"tokens"`
-}
-
-type ModelUsage struct {
-	Model  string      `json:"model"`
-	Calls  int         `json:"calls"`
-	Tokens TokenTotals `json:"tokens"`
-}
-
-type UsageOverview struct {
-	Date           string       `json:"date"`
-	Calls          int          `json:"calls"`
-	Sessions       int          `json:"sessions"`
-	Projects       int          `json:"projects"`
-	FilesScanned   int          `json:"filesScanned"`
-	ParseWarnings  int          `json:"parseWarnings"`
-	CacheReadShare float64      `json:"cacheReadShare"`
-	FirstActivity  time.Time    `json:"firstActivity,omitempty"`
-	LastActivity   time.Time    `json:"lastActivity,omitempty"`
-	Tokens         TokenTotals  `json:"tokens"`
-	Models         []ModelUsage `json:"models"`
-}
+type TokenTotals = domain.TokenTotals
+type UsageCall = domain.UsageCall
+type ModelUsage = domain.ModelUsage
+type UsageOverview = domain.UsageOverview
 
 type scanStats struct {
 	FilesScanned  int
 	ParseWarnings int
+}
+
+type TranscriptFile struct {
+	Path     string
+	Project  string
+	Session  string
+	Subagent bool
+	Size     int64
+	ModTime  time.Time
+}
+
+type IndexedUsageCall struct {
+	Key          string
+	SourceOffset int64
+	Call         UsageCall
 }
 
 type transcriptRecord struct {
@@ -87,14 +67,84 @@ func ScanUsageToday(projectsPath string, now time.Time) (UsageOverview, error) {
 	if err != nil {
 		return UsageOverview{}, err
 	}
-
 	return summarizeDay(calls, stats, now), nil
+}
+
+func DiscoverTranscripts(projectsPath string) ([]TranscriptFile, error) {
+	files := make([]TranscriptFile, 0)
+	if _, err := os.Stat(projectsPath); err != nil {
+		if os.IsNotExist(err) {
+			return files, nil
+		}
+		return nil, err
+	}
+
+	err := filepath.WalkDir(projectsPath, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".jsonl") {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		project, session, subagent := usageLocation(projectsPath, path)
+		files = append(files, TranscriptFile{Path: path, Project: project, Session: session, Subagent: subagent, Size: info.Size(), ModTime: info.ModTime()})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+func ReadUsageChunk(file TranscriptFile, offset int64) ([]IndexedUsageCall, int64, int, error) {
+	stream, err := os.Open(file.Path)
+	if err != nil {
+		return nil, offset, 0, err
+	}
+	defer stream.Close()
+	if _, err := stream.Seek(offset, io.SeekStart); err != nil {
+		return nil, offset, 0, err
+	}
+
+	reader := bufio.NewReaderSize(stream, 128*1024)
+	calls := make([]IndexedUsageCall, 0)
+	warnings := 0
+	cursor := offset
+	nextOffset := offset
+	for {
+		lineStart := cursor
+		line, readErr := reader.ReadBytes('\n')
+		cursor += int64(len(line))
+		complete := len(line) > 0 && line[len(line)-1] == '\n'
+		if complete {
+			nextOffset = cursor
+			if bytes.Contains(line, []byte(`"usage"`)) {
+				call, ok, parseErr := parseUsageLine(line, file.Project, file.Session, file.Subagent)
+				if parseErr != nil {
+					warnings++
+				} else if ok {
+					calls = append(calls, IndexedUsageCall{Key: usageKey(call, file.Path, lineStart), SourceOffset: lineStart, Call: call})
+				}
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			return nil, nextOffset, warnings, fmt.Errorf("read %s: %w", file.Path, readErr)
+		}
+	}
+	return calls, nextOffset, warnings, nil
 }
 
 func scanUsage(projectsPath string) ([]UsageCall, scanStats, error) {
 	callsByKey := make(map[string]UsageCall)
 	stats := scanStats{}
-
 	if _, err := os.Stat(projectsPath); err != nil {
 		if os.IsNotExist(err) {
 			return nil, stats, nil
@@ -109,7 +159,6 @@ func scanUsage(projectsPath string) ([]UsageCall, scanStats, error) {
 		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".jsonl") {
 			return nil
 		}
-
 		stats.FilesScanned++
 		project, session, subagent := usageLocation(projectsPath, path)
 		fileCalls, warnings, err := readUsageFile(path, project, session, subagent)
@@ -117,28 +166,22 @@ func scanUsage(projectsPath string) ([]UsageCall, scanStats, error) {
 		if err != nil {
 			return err
 		}
-
 		for index, call := range fileCalls {
-			key := usageKey(call, path, index)
+			key := usageKey(call, path, int64(index))
 			if current, ok := callsByKey[key]; !ok || betterUsageCall(call, current) {
 				callsByKey[key] = call
 			}
 		}
-
 		return nil
 	})
 	if err != nil {
 		return nil, stats, err
 	}
-
 	calls := make([]UsageCall, 0, len(callsByKey))
 	for _, call := range callsByKey {
 		calls = append(calls, call)
 	}
-	sort.Slice(calls, func(i, j int) bool {
-		return calls[i].Timestamp.Before(calls[j].Timestamp)
-	})
-
+	sort.Slice(calls, func(i, j int) bool { return calls[i].Timestamp.Before(calls[j].Timestamp) })
 	return calls, stats, nil
 }
 
@@ -148,11 +191,9 @@ func readUsageFile(path, project, session string, subagent bool) ([]UsageCall, i
 		return nil, 0, err
 	}
 	defer file.Close()
-
 	reader := bufio.NewReaderSize(file, 128*1024)
 	calls := make([]UsageCall, 0)
 	warnings := 0
-
 	for lineNumber := 1; ; lineNumber++ {
 		line, readErr := reader.ReadBytes('\n')
 		if len(line) > 0 && bytes.Contains(line, []byte(`"usage"`)) {
@@ -163,7 +204,6 @@ func readUsageFile(path, project, session string, subagent bool) ([]UsageCall, i
 				calls = append(calls, call)
 			}
 		}
-
 		if readErr != nil {
 			if readErr == io.EOF {
 				break
@@ -171,7 +211,6 @@ func readUsageFile(path, project, session string, subagent bool) ([]UsageCall, i
 			return nil, warnings, fmt.Errorf("read %s line %d: %w", path, lineNumber, readErr)
 		}
 	}
-
 	return calls, warnings, nil
 }
 
@@ -183,58 +222,34 @@ func parseUsageLine(line []byte, project, session string, subagent bool) (UsageC
 	if record.Type != "assistant" || record.Message.Usage == nil {
 		return UsageCall{}, false, nil
 	}
-
 	timestamp, err := parseTimestamp(record.Timestamp)
 	if err != nil {
 		return UsageCall{}, false, err
 	}
-
 	usage := record.Message.Usage
 	cacheCreation := usage.CacheCreationTokens
 	cacheSplit := usage.CacheCreation.Ephemeral5m + usage.CacheCreation.Ephemeral1h
 	if cacheCreation == 0 && cacheSplit > 0 {
 		cacheCreation = cacheSplit
 	}
-
-	tokens := TokenTotals{
-		Input:           usage.InputTokens,
-		Output:          usage.OutputTokens,
-		CacheCreation:   cacheCreation,
-		CacheRead:       usage.CacheReadTokens,
-		CacheCreation5m: usage.CacheCreation.Ephemeral5m,
-		CacheCreation1h: usage.CacheCreation.Ephemeral1h,
-	}
+	tokens := TokenTotals{Input: usage.InputTokens, Output: usage.OutputTokens, CacheCreation: cacheCreation, CacheRead: usage.CacheReadTokens, CacheCreation5m: usage.CacheCreation.Ephemeral5m, CacheCreation1h: usage.CacheCreation.Ephemeral1h}
 	tokens.Total = tokens.Input + tokens.Output + tokens.CacheCreation + tokens.CacheRead
-
 	stopReason := ""
 	if record.Message.StopReason != nil {
 		stopReason = *record.Message.StopReason
 	}
-
-	return UsageCall{
-		MessageID:  record.Message.ID,
-		RequestID:  record.RequestID,
-		Timestamp:  timestamp,
-		Model:      record.Message.Model,
-		Project:    project,
-		Session:    session,
-		Subagent:   subagent,
-		StopReason: stopReason,
-		Tokens:     tokens,
-	}, true, nil
+	return UsageCall{MessageID: record.Message.ID, RequestID: record.RequestID, Timestamp: timestamp, Model: record.Message.Model, Project: project, Session: session, Subagent: subagent, StopReason: stopReason, Tokens: tokens}, true, nil
 }
 
 func parseTimestamp(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, fmt.Errorf("missing timestamp")
 	}
-
 	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
 		if parsed, err := time.Parse(layout, value); err == nil {
 			return parsed, nil
 		}
 	}
-
 	return time.Time{}, fmt.Errorf("invalid timestamp %q", value)
 }
 
@@ -243,7 +258,6 @@ func usageLocation(projectsPath, path string) (project, session string, subagent
 	if err != nil {
 		return "unknown", strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), false
 	}
-
 	parts := strings.Split(relative, string(filepath.Separator))
 	if len(parts) > 0 {
 		project = parts[0]
@@ -253,7 +267,6 @@ func usageLocation(projectsPath, path string) (project, session string, subagent
 	} else if len(parts) >= 3 {
 		session = parts[1]
 	}
-
 	for _, part := range parts {
 		if part == "subagents" {
 			subagent = true
@@ -269,11 +282,10 @@ func usageLocation(projectsPath, path string) (project, session string, subagent
 	if session == "" {
 		session = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	}
-
 	return project, session, subagent
 }
 
-func usageKey(call UsageCall, path string, index int) string {
+func usageKey(call UsageCall, path string, identity int64) string {
 	if call.MessageID != "" {
 		if call.RequestID != "" {
 			return call.MessageID + ":" + call.RequestID
@@ -283,7 +295,7 @@ func usageKey(call UsageCall, path string, index int) string {
 	if call.RequestID != "" {
 		return "request:" + call.RequestID
 	}
-	return fmt.Sprintf("%s:%d", path, index)
+	return fmt.Sprintf("%s:%d", path, identity)
 }
 
 func betterUsageCall(candidate, current UsageCall) bool {
@@ -304,34 +316,24 @@ func betterUsageCall(candidate, current UsageCall) bool {
 func summarizeDay(calls []UsageCall, stats scanStats, now time.Time) UsageOverview {
 	location := now.Location()
 	day := now.In(location).Format("2006-01-02")
-	overview := UsageOverview{
-		Date:          day,
-		FilesScanned:  stats.FilesScanned,
-		ParseWarnings: stats.ParseWarnings,
-	}
-
+	overview := UsageOverview{Date: day, FilesScanned: stats.FilesScanned, ParseWarnings: stats.ParseWarnings}
 	sessions := make(map[string]struct{})
 	projects := make(map[string]struct{})
 	models := make(map[string]*ModelUsage)
-
 	for _, call := range calls {
 		if call.Timestamp.IsZero() || call.Timestamp.In(location).Format("2006-01-02") != day {
 			continue
 		}
-
 		overview.Calls++
-		addTokens(&overview.Tokens, call.Tokens)
-
+		domain.AddTokens(&overview.Tokens, call.Tokens)
 		if overview.FirstActivity.IsZero() || call.Timestamp.Before(overview.FirstActivity) {
 			overview.FirstActivity = call.Timestamp
 		}
 		if overview.LastActivity.IsZero() || call.Timestamp.After(overview.LastActivity) {
 			overview.LastActivity = call.Timestamp
 		}
-
 		projects[call.Project] = struct{}{}
 		sessions[call.Project+":"+call.Session] = struct{}{}
-
 		model := call.Model
 		if model == "" {
 			model = "unknown"
@@ -342,16 +344,14 @@ func summarizeDay(calls []UsageCall, stats scanStats, now time.Time) UsageOvervi
 			models[model] = breakdown
 		}
 		breakdown.Calls++
-		addTokens(&breakdown.Tokens, call.Tokens)
+		domain.AddTokens(&breakdown.Tokens, call.Tokens)
 	}
-
 	overview.Projects = len(projects)
 	overview.Sessions = len(sessions)
 	promptTokens := overview.Tokens.Input + overview.Tokens.CacheCreation + overview.Tokens.CacheRead
 	if promptTokens > 0 {
 		overview.CacheReadShare = (float64(overview.Tokens.CacheRead) / float64(promptTokens)) * 100
 	}
-
 	overview.Models = make([]ModelUsage, 0, len(models))
 	for _, breakdown := range models {
 		overview.Models = append(overview.Models, *breakdown)
@@ -362,16 +362,5 @@ func summarizeDay(calls []UsageCall, stats scanStats, now time.Time) UsageOvervi
 		}
 		return overview.Models[i].Tokens.Total > overview.Models[j].Tokens.Total
 	})
-
 	return overview
-}
-
-func addTokens(target *TokenTotals, value TokenTotals) {
-	target.Input += value.Input
-	target.Output += value.Output
-	target.CacheCreation += value.CacheCreation
-	target.CacheRead += value.CacheRead
-	target.CacheCreation5m += value.CacheCreation5m
-	target.CacheCreation1h += value.CacheCreation1h
-	target.Total += value.Total
 }
