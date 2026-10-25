@@ -32,6 +32,18 @@ const emptyStatus: VarnqorSystemStatus = {
     models: [],
   },
   hourly: [],
+  burn: {
+    ready: false,
+    currentPerHour: 0,
+    previousPerHour: 0,
+    baselinePerHour: 0,
+    ratio: 0,
+    changePercent: 0,
+    trend: 'idle',
+    level: 'learning',
+    confidence: 'insufficient',
+    baselineSamples: 0,
+  },
   sync: {
     filesSeen: 0,
     filesChanged: 0,
@@ -62,6 +74,21 @@ function formatDate(value?: string) {
 function hourLabel(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '--' : date.toLocaleTimeString([], { hour: '2-digit' })
+}
+
+function signedPercent(value: number) {
+  if (value === 0) return '0.0%'
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
+}
+
+function trendLabel(trend: BurnRate['trend']) {
+  switch (trend) {
+    case 'accelerating': return 'ACCELERATING'
+    case 'cooling': return 'COOLING'
+    case 'steady': return 'STEADY'
+    case 'new-spike': return 'NEW ACTIVITY'
+    default: return 'IDLE'
+  }
 }
 
 function metric(label: string, value: number, detail: string) {
@@ -96,19 +123,23 @@ export default function App() {
   const claude = status.claude
   const usage = status.usage
   const hourly = status.hourly ?? []
+  const burn = status.burn
   const models = usage.models ?? []
   const hasUsage = usage.calls > 0
   const maxHourly = Math.max(1, ...hourly.map((bucket) => bucket.tokens.total))
+  const meterWidth = burn.ready ? Math.min(100, Math.max(2, (burn.ratio / 2.5) * 100)) : 0
 
   const headline = loading
     ? 'Indexing local usage…'
     : status.usageError
       ? 'Local index needs attention.'
-      : hasUsage
-        ? 'Usage history is live.'
-        : claude.detected
-          ? 'Claude Code detected.'
-          : 'Claude Code not detected.'
+      : burn.ready
+        ? 'Burn intelligence is live.'
+        : hasUsage
+          ? 'Learning your usage baseline.'
+          : claude.detected
+            ? 'Claude Code detected.'
+            : 'Claude Code not detected.'
 
   return (
     <main className="shell">
@@ -117,15 +148,15 @@ export default function App() {
           <div className="wordmark">VARNQOR</div>
           <div className="tagline">Resource intelligence for AI coding agents.</div>
         </div>
-        <div className="milestone">M2 · LOCAL STORE</div>
+        <div className="milestone">M3 · BURN RATE</div>
       </header>
 
       <section className="hero">
         <div className="eyebrow">CLAUDE CODE · TODAY</div>
         <h1>{headline}</h1>
         <p>
-          Incremental local telemetry backed by SQLite. Varnqor only re-reads transcript bytes that
-          have not already been indexed, while preserving deduplication across sessions and files.
+          Rolling 60-minute activity compared with the median of completed active hours. Idle time is
+          excluded from the baseline, and Varnqor stays in learning mode until the signal is credible.
         </p>
         {status.usageError && <div className="warning">{status.usageError}</div>}
       </section>
@@ -142,6 +173,37 @@ export default function App() {
         <div className="summaryItem"><span className="label">API CALLS</span><strong>{usage.calls}</strong></div>
         <div className="summaryItem"><span className="label">ACTIVE SESSIONS</span><strong>{usage.sessions}</strong></div>
         <div className="summaryItem"><span className="label">CACHE READ SHARE</span><strong>{usage.cacheReadShare.toFixed(1)}%</strong></div>
+      </section>
+
+      <section className={`burnPanel burn-${burn.level}`} aria-label="Burn rate">
+        <div className="burnPrimary">
+          <span className="label">CURRENT BURN RATE</span>
+          <div className="burnHeadline">
+            <strong>{burn.ready ? `${burn.ratio.toFixed(2)}×` : '—'}</strong>
+            <span>{burn.ready ? burn.level.toUpperCase() : 'LEARNING'}</span>
+          </div>
+          <div className="burnMeter" aria-hidden="true">
+            <div className="burnMeterFill" style={{ width: `${meterWidth}%` }} />
+            <i className="burnBaselineMarker" />
+          </div>
+          <p>
+            {burn.ready
+              ? `Current activity is ${Math.abs((burn.ratio - 1) * 100).toFixed(0)}% ${burn.ratio >= 1 ? 'above' : 'below'} the active-hour baseline.`
+              : `Need at least 2 completed active hours. ${burn.baselineSamples} available so far.`}
+          </p>
+        </div>
+
+        <div className="burnFacts">
+          <div><span className="label">LAST 60 MIN</span><strong>{formatTokens(burn.currentPerHour)}</strong></div>
+          <div><span className="label">PREVIOUS 60 MIN</span><strong>{formatTokens(burn.previousPerHour)}</strong></div>
+          <div><span className="label">ACTIVE BASELINE</span><strong>{burn.baselinePerHour ? formatTokens(burn.baselinePerHour) : '—'}</strong></div>
+          <div>
+            <span className="label">TREND</span>
+            <strong>{trendLabel(burn.trend)}</strong>
+            <small>{burn.previousPerHour > 0 ? signedPercent(burn.changePercent) : 'No prior comparison'}</small>
+          </div>
+          <div><span className="label">CONFIDENCE</span><strong>{burn.confidence.toUpperCase()}</strong><small>{burn.baselineSamples} baseline samples</small></div>
+        </div>
       </section>
 
       <section className="chartPanel" aria-label="Hourly token activity">
