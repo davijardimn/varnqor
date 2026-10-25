@@ -16,39 +16,30 @@
 
 Varnqor is a **local-first desktop application** for understanding how AI coding agents consume resources.
 
-Most usage tools answer *how much was used?* Varnqor is being built to answer the next questions:
-
-- Where did the usage go?
-- Why did this session consume so much?
-- How quickly am I burning resources?
-- Which sessions and projects are driving consumption?
-- Which usage patterns may have been avoidable?
-- When is the current burn rate likely to become a problem?
+Most usage tools answer *how much was used?* Varnqor is being built to answer the next questions: where usage went, why a session consumed so much, how quickly resources are burning, and which patterns may have been avoidable.
 
 > **Control the burn.**
 
-## Current milestone — Usage Engine
+## Current milestone — Local Usage Store
 
-Varnqor now has a read-only Claude Code usage scanner that turns local JSONL transcripts into deduplicated token telemetry.
+Varnqor now incrementally indexes Claude Code usage into a local SQLite database. After the first scan, unchanged transcript bytes are not parsed again.
 
-Today the engine can report:
+The current desktop view includes:
 
 ```text
 uncached input
 output
-cache reads
-cache writes
-5m / 1h cache creation split
+cache reads / writes
 unique API calls
-active sessions
-active projects
+active sessions and projects
 model breakdown
-cache read share
+hourly token activity
+local index status
 ```
 
-The parser prefers final streaming records and deduplicates repeated API calls instead of summing every JSONL line.
+The index keeps the Usage Engine's streaming/cross-file deduplication rules and uses per-file byte offsets plus checkpoint hashes to detect rewrites safely.
 
-See [docs/usage-engine.md](docs/usage-engine.md) for the accounting methodology.
+See [docs/usage-engine.md](docs/usage-engine.md) for accounting and [docs/storage.md](docs/storage.md) for indexing semantics.
 
 ## Product direction
 
@@ -56,14 +47,12 @@ See [docs/usage-engine.md](docs/usage-engine.md) for the accounting methodology.
 OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
 ```
 
-Varnqor will grow in that order. Optimization comes after the measurements are trustworthy.
-
 ## Desktop architecture
 
-- **Wails v2** for the native desktop shell
-- **Go** for collectors, analytics and the core engine
-- **React + TypeScript + Vite** for the interface
-- **SQLite** for incremental local history in the next storage milestone
+- **Wails v2** — native desktop shell
+- **Go** — collectors, indexing and analytics
+- **React + TypeScript + Vite** — interface
+- **SQLite** — local incremental history
 
 ## Planned v0.1
 
@@ -74,8 +63,8 @@ Varnqor will grow in that order. Optimization comes after the measurements are t
 - [x] Claude usage event parser
 - [x] Deduplicated token accounting
 - [x] Model/session/project daily aggregation
-- [ ] SQLite incremental history
-- [ ] Hourly usage series
+- [x] SQLite incremental history
+- [x] Hourly usage series
 - [ ] Burn rate
 - [ ] Deep session/project attribution
 - [ ] Waste Analyzer
@@ -83,28 +72,19 @@ Varnqor will grow in that order. Optimization comes after the measurements are t
 
 ## Local-first
 
-The default product direction is:
-
 ```text
 No cloud account
 No telemetry by default
 No prompt uploads
 No source-code uploads
-Read-only local analysis
+Read-only source analysis
 ```
 
-See [docs/privacy.md](docs/privacy.md).
+The usage index stores resource metadata, not prompt or response content. See [docs/privacy.md](docs/privacy.md).
 
 ## Honest quota intelligence
 
-Providers expose limits differently. Varnqor will distinguish values that are:
-
-- `official`
-- `observed`
-- `estimated`
-- `configured`
-
-An estimate must never be presented as an official quota.
+Varnqor distinguishes values that are `official`, `observed`, `estimated`, or `configured`. An estimate must never be presented as an official provider quota.
 
 ## Development
 
@@ -114,22 +94,15 @@ Requirements:
 - Node.js 24+
 - Wails v2.17+
 
-Install Wails:
-
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
-```
-
-Run the desktop app:
-
-```bash
 cd frontend
 npm install
 cd ..
 wails dev
 ```
 
-Run the core tests:
+Run core tests with:
 
 ```bash
 go test ./internal/...
@@ -140,16 +113,12 @@ go test ./internal/...
 ```text
 .
 ├── internal/
-│   └── providers/
-│       └── claude/
-│           ├── detect.go
-│           └── usage.go
-├── frontend/
-│   └── src/
+│   ├── domain/
+│   ├── indexer/
+│   ├── providers/claude/
+│   └── storage/
+├── frontend/src/
 ├── docs/
-│   ├── architecture.md
-│   ├── privacy.md
-│   └── usage-engine.md
 ├── app.go
 ├── main.go
 └── wails.json
