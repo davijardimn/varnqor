@@ -20,11 +20,11 @@ Most usage tools answer *how much was used?* Varnqor is being built to answer th
 
 > **Control the burn.**
 
-## Current milestone — Local Usage Store
+## Current milestone — Burn Rate
 
-Varnqor now incrementally indexes Claude Code usage into a local SQLite database. After the first scan, unchanged transcript bytes are not parsed again.
+Varnqor now converts local Claude Code usage history into an explainable burn signal.
 
-The current desktop view includes:
+The desktop can show:
 
 ```text
 uncached input
@@ -34,12 +34,18 @@ unique API calls
 active sessions and projects
 model breakdown
 hourly token activity
+rolling 60-minute burn rate
+active-hour baseline
+acceleration / cooling trend
+signal confidence
 local index status
 ```
 
-The index keeps the Usage Engine's streaming/cross-file deduplication rules and uses per-file byte offsets plus checkpoint hashes to detect rewrites safely.
+Burn Rate compares the latest rolling 60 minutes with the median of completed active hours. Idle hours are excluded, and Varnqor stays in a learning state until enough baseline history exists.
 
-See [docs/usage-engine.md](docs/usage-engine.md) for accounting and [docs/storage.md](docs/storage.md) for indexing semantics.
+The burn signal is a Varnqor heuristic. It is not provider quota remaining and it does not claim that high activity is waste.
+
+See [docs/burn-rate.md](docs/burn-rate.md) for the complete methodology, [docs/usage-engine.md](docs/usage-engine.md) for accounting, and [docs/storage.md](docs/storage.md) for indexing semantics.
 
 ## Product direction
 
@@ -65,7 +71,7 @@ OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> OPTIMIZE
 - [x] Model/session/project daily aggregation
 - [x] SQLite incremental history
 - [x] Hourly usage series
-- [ ] Burn rate
+- [x] Burn rate
 - [ ] Deep session/project attribution
 - [ ] Waste Analyzer
 - [ ] Usage forecasting
@@ -113,6 +119,7 @@ go test ./internal/...
 ```text
 .
 ├── internal/
+│   ├── analytics/
 │   ├── domain/
 │   ├── indexer/
 │   ├── providers/claude/
