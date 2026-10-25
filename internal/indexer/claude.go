@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/davijardimn/varnqor/internal/domain"
 	"github.com/davijardimn/varnqor/internal/providers/claude"
