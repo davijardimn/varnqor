@@ -19,20 +19,25 @@ type AdvisorReport={generatedAt?:string;mode:'advisory'|string;high:number;mediu
 type SyncStats={filesSeen:number;filesChanged:number;bytesIndexed:number;recordsObserved:number;parseWarnings:number;rebuilt:boolean}
 type ConfiguredBudgetSettings={enabled:boolean;label:string;limitTokens:number;resetHour:number}
 type GuardrailSettings={enabled:boolean;spikePercent:number;projectConcentrationPercent:number;sessionConcentrationPercent:number;cacheReadMinimumPercent:number;minimumTokens:number}
-type VarnqorSettings={version:number;refreshSeconds:number;budget:ConfiguredBudgetSettings;guardrails:GuardrailSettings}
+type OptimizationSettings={enabled:boolean;goal:'balanced'|'economy'|'throughput'|string;targetReductionPercent:number;horizonMinutes:number;executionMode:'preview'|'manual'|string}
+type VarnqorSettings={version:number;refreshSeconds:number;language:string;theme:'system'|'light'|'dark'|string;budget:ConfiguredBudgetSettings;guardrails:GuardrailSettings;optimization:OptimizationSettings}
 type DoctorCheck={id:string;label:string;status:'pass'|'warn'|'fail';detail:string}
 type DoctorReport={status:'healthy'|'warning'|'error';version:string;pass:number;warn:number;fail:number;checks:DoctorCheck[]|null}
 type VarnqorSystemStatus={version:string;generatedAt?:string;providers:ProviderStatus[]|null;claude:ClaudeDetection;usage:UsageOverview;hourly:HourUsage[]|null;burn:BurnRate;forecast:ForecastReport;quota:QuotaStatus;attribution:AttributionReport;waste:WasteReport;wasteScope:string;advisor:AdvisorReport;sync:SyncStats;storageReady:boolean;usageError?:string;settingsError?:string}
 
-type ExploreFilter={provider:string;project:string;model:string;rangeMinutes:number;limit:number}
+type ExploreFilter={provider:string;project:string;session:string;model:string;rangeMinutes:number;limit:number}
 type WindowSummary={start:string;end:string;calls:number;projects:number;sessions:number;tokens:TokenTotals;cacheReadShare:number}
 type DimensionActivity={provider?:string;name:string;calls:number;sessions:number;tokens:TokenTotals;sharePercent:number;lastActivity?:string}
 type SessionActivity={provider:string;project:string;session:string;calls:number;tokens:TokenTotals;sharePercent:number;firstActivity:string;lastActivity:string;subagent:boolean}
 type CallActivity={provider:string;project:string;session:string;model:string;timestamp:string;tokens:TokenTotals;subagent:boolean}
 type TimelineBucket={start:string;calls:number;tokens:TokenTotals}
-type CompareReport={tokensChangePercent:number;callsChangePercent:number;cacheChangePoints:number;tokensComparable?:boolean;callsComparable?:boolean;cacheComparable?:boolean;direction:'new'|'up'|'down'|'steady'|string}
+type CompareReport={tokensChangePercent:number;callsChangePercent:number;cacheChangePoints:number;tokensComparable:boolean;callsComparable:boolean;cacheComparable:boolean;direction:'new'|'up'|'down'|'steady'|string}
 type ExploreFacets={providers:string[]|null;projects:string[]|null;models:string[]|null}
 type PulseSignal={id:string;severity:'low'|'medium'|'high'|string;kind:string;title:string;detail:string;value:number;threshold:number;provider?:string;project?:string;session?:string}
 type ExploreReport={generatedAt:string;filter:ExploreFilter;bucketMinutes:number;current:WindowSummary;previous:WindowSummary;comparison:CompareReport;timeline:TimelineBucket[]|null;providers:DimensionActivity[]|null;projects:DimensionActivity[]|null;models:DimensionActivity[]|null;sessions:SessionActivity[]|null;recent:CallActivity[]|null;facets:ExploreFacets;signals:PulseSignal[]|null}
 
-interface Window{go?:{main?:{App?:{GetSystemStatus:()=>Promise<VarnqorSystemStatus>;GetSettings:()=>Promise<VarnqorSettings>;SaveSettings:(value:VarnqorSettings)=>Promise<VarnqorSettings>;RunDoctor:()=>Promise<DoctorReport>;GetExplore:(filter:ExploreFilter)=>Promise<ExploreReport>;ExportExplore:(filter:ExploreFilter,format:string)=>Promise<string>}}}}
+type OptimizationScenario={currentPerHour:number;horizonMinutes:number;projectedTokens:number;targetReductionPercent:number;targetTokens:number;targetSavings:number;feasibility:'conservative'|'balanced'|'ambitious'|string}
+type OptimizationAction={id:string;kind:string;priority:'high'|'medium'|'low'|string;title:string;summary:string;evidence:string;provider?:string;project?:string;session?:string;confidence:string;estimatedSavingsLow:number;estimatedSavingsHigh:number;nonAdditive:boolean;steps:string[]|null}
+type OptimizationReport={generatedAt:string;state:'disabled'|'idle'|'stable'|'opportunity'|string;goal:string;mode:string;executionAvailable:boolean;scenario:OptimizationScenario;actions:OptimizationAction[]|null;providersObserved:number;projectsObserved:number;sessionsObserved:number;note:string}
+
+interface Window{go?:{main?:{App?:{GetSystemStatus:()=>Promise<VarnqorSystemStatus>;GetSettings:()=>Promise<VarnqorSettings>;SaveSettings:(value:VarnqorSettings)=>Promise<VarnqorSettings>;RunDoctor:()=>Promise<DoctorReport>;GetExplore:(filter:ExploreFilter)=>Promise<ExploreReport>;ExportExplore:(filter:ExploreFilter,format:string)=>Promise<string>;GetOptimization:(filter:ExploreFilter)=>Promise<OptimizationReport>}}}}
