@@ -14,6 +14,7 @@ import (
 func NormalizeExploreFilter(value domain.ExploreFilter) domain.ExploreFilter {
 	value.Provider = strings.TrimSpace(strings.ToLower(value.Provider))
 	value.Project = strings.TrimSpace(value.Project)
+	value.Session = strings.TrimSpace(value.Session)
 	value.Model = strings.TrimSpace(value.Model)
 	if value.Provider == "all" { value.Provider = "" }
 	if value.RangeMinutes <= 0 { value.RangeMinutes = 60 }
@@ -130,14 +131,14 @@ func (s *Store) exploreFacets(filter domain.ExploreFilter)(domain.ExploreFacets,
 	providers,err:=s.distinctStrings(`SELECT DISTINCT provider FROM usage_calls WHERE total_tokens>0 ORDER BY provider`,nil);if err!=nil{return facets,err};facets.Providers=providers
 	projectWhere:="total_tokens>0";projectArgs:=[]any{};if filter.Provider!=""{projectWhere+=" AND provider=?";projectArgs=append(projectArgs,filter.Provider)}
 	projects,err:=s.distinctStrings(`SELECT DISTINCT project FROM usage_calls WHERE `+projectWhere+` AND TRIM(project)<>'' AND project<>'unknown' ORDER BY project`,projectArgs);if err!=nil{return facets,err};facets.Projects=uniqueSorted(projects)
-	modelWhere:=projectWhere;modelArgs:=append([]any{},projectArgs...);if filter.Project!=""{modelWhere+=" AND project=?";modelArgs=append(modelArgs,filter.Project)}
+	modelWhere:=projectWhere;modelArgs:=append([]any{},projectArgs...);if filter.Project!=""{modelWhere+=" AND project=?";modelArgs=append(modelArgs,filter.Project)};if filter.Session!=""{modelWhere+=" AND session=?";modelArgs=append(modelArgs,filter.Session)}
 	models,err:=s.distinctStrings(`SELECT DISTINCT model FROM usage_calls WHERE `+modelWhere+` AND TRIM(model)<>'' AND model NOT LIKE '<%>' ORDER BY model`,modelArgs);if err!=nil{return facets,err};facets.Models=models
 	return facets,nil
 }
 
 func (s *Store) distinctStrings(query string,args []any)([]string,error){rows,err:=s.db.Query(query,args...);if err!=nil{return nil,err};defer rows.Close();items:=[]string{};for rows.Next(){var value string;if err:=rows.Scan(&value);err!=nil{return nil,err};items=append(items,value)};return items,rows.Err()}
 
-func exploreWhere(filter domain.ExploreFilter,start,end time.Time)(string,[]any){parts:=[]string{"timestamp_ms>=?","timestamp_ms<?","total_tokens>0"};args:=[]any{start.UnixMilli(),end.UnixMilli()};if filter.Provider!=""{parts=append(parts,"provider=?");args=append(args,filter.Provider)};if filter.Project!=""{parts=append(parts,"project=?");args=append(args,filter.Project)};if filter.Model!=""{parts=append(parts,"model=?");args=append(args,filter.Model)};return strings.Join(parts," AND "),args}
+func exploreWhere(filter domain.ExploreFilter,start,end time.Time)(string,[]any){parts:=[]string{"timestamp_ms>=?","timestamp_ms<?","total_tokens>0"};args:=[]any{start.UnixMilli(),end.UnixMilli()};if filter.Provider!=""{parts=append(parts,"provider=?");args=append(args,filter.Provider)};if filter.Project!=""{parts=append(parts,"project=?");args=append(args,filter.Project)};if filter.Session!=""{parts=append(parts,"session=?");args=append(args,filter.Session)};if filter.Model!=""{parts=append(parts,"model=?");args=append(args,filter.Model)};return strings.Join(parts," AND "),args}
 func exploreBucketMinutes(minutes int)int{switch{case minutes<=120:return 5;case minutes<=720:return 30;case minutes<=2880:return 60;default:return 360}}
 func promptTokens(tokens domain.TokenTotals)int64{return tokens.Input+tokens.CacheCreation+tokens.CacheRead}
 func percentDelta(current,previous int64)float64{if previous==0{return 0};return math.Round((float64(current-previous)/float64(previous)*100)*10)/10}
