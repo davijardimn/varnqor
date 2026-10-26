@@ -40,7 +40,7 @@ jobs:
           node-version: '24'
       - name: Install dependencies
         run: npm install
-      - name: Build
+      - name: Build active V4 desktop
         run: npm run build
 
   desktop-windows:
@@ -64,20 +64,29 @@ jobs:
       - name: Build Windows desktop
         shell: pwsh
         run: wails build -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci-${{ github.sha }}"
-      - name: Smoke CLI
+      - name: Smoke V4 CLI and settings
         shell: pwsh
         run: |
           .\build\bin\varnqor-ci.exe version
           .\build\bin\varnqor-ci.exe help
           .\build\bin\varnqor-ci.exe providers --json
           .\build\bin\varnqor-ci.exe doctor --json
-          .\build\bin\varnqor-ci.exe config show
           .\build\bin\varnqor-ci.exe config theme dark
           .\build\bin\varnqor-ci.exe config language pt-BR
           .\build\bin\varnqor-ci.exe config optimize economy --target 25 --horizon 360 --mode preview
+          .\build\bin\varnqor-ci.exe config control economy --burn 1.50 --session 58 --project 68 --budget-warning 75 --active 10 --cooling 40 --horizon 120 --minimum 800
+          $config = .\build\bin\varnqor-ci.exe config show --json | ConvertFrom-Json
+          if ($config.version -ne 4) { throw "Expected settings schema v4" }
+          if ($config.theme -ne 'dark') { throw "Theme did not persist" }
+          if ($config.language -ne 'pt-BR') { throw "Language did not persist" }
+          if ($config.control.profile -ne 'economy') { throw "Control profile did not persist" }
+          if ([math]::Abs($config.control.burnCeilingRatio - 1.50) -gt 0.001) { throw "Control burn ceiling did not persist" }
           .\build\bin\varnqor-ci.exe explore --range 1h --json
           .\build\bin\varnqor-ci.exe pulse --range 1h --json
           .\build\bin\varnqor-ci.exe optimize --range 1h --json
+          .\build\bin\varnqor-ci.exe control --range 1h --json
+          $brief = .\build\bin\varnqor-ci.exe brief --range 1h
+          if ($brief -notmatch 'Varnqor Control Brief') { throw "Control brief smoke failed" }
           .\build\bin\varnqor-ci.exe export --range 1h --format csv
       - name: Generate SHA-256 checksum
         shell: pwsh
