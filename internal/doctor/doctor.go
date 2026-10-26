@@ -36,7 +36,7 @@ func Run(store *storage.Store, storeErr error, version string) domain.DoctorRepo
 	if storeErr != nil { report.Checks = append(report.Checks, check("sqlite", "Local SQLite store", "fail", storeErr.Error())) } else if store == nil { report.Checks = append(report.Checks, check("sqlite", "Local SQLite store", "fail", "store is not initialized")) } else { report.Checks = append(report.Checks, check("sqlite", "Local SQLite store", "pass", store.Path())) }
 	if _, err := settings.LoadDefault(); err != nil { report.Checks = append(report.Checks, check("settings", "Settings file", "fail", err.Error())) } else { path, _ := settings.DefaultPath(); report.Checks = append(report.Checks, check("settings", "Settings file", "pass", path)) }
 	if err := configWriteCheck(); err != nil { report.Checks = append(report.Checks, check("config-write", "Config directory writable", "fail", err.Error())) } else { report.Checks = append(report.Checks, check("config-write", "Config directory writable", "pass", "temporary write succeeded")) }
-	if store != nil && storeErr == nil { if err := store.PrepareV1(); err != nil { report.Checks = append(report.Checks, check("data-model", "1.0 data model", "fail", err.Error())) } else { report.Checks = append(report.Checks, check("data-model", "1.0 data model", "pass", "resource index hygiene is current")) } }
+	if store != nil && storeErr == nil { if err := store.PrepareV1(); err != nil { report.Checks = append(report.Checks, check("data-model", "Resource data model", "fail", err.Error())) } else { report.Checks = append(report.Checks, check("data-model", "Resource data model", "pass", "resource index hygiene is current")) } }
 	return Summarize(report)
 }
 
