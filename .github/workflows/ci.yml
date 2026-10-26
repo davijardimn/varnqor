@@ -60,7 +60,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
       - name: Build Windows desktop
         shell: pwsh
-        run: wails build -clean -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci-${{ github.sha }}"
+        run: wails build -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci-${{ github.sha }}"
       - name: Smoke CLI
         shell: pwsh
         run: |

@@ -1,10 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbf8f2"/><stop offset="1" stop-color="#eee6db"/></linearGradient>
-    <linearGradient id="copper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d29163"/><stop offset="1" stop-color="#aa6038"/></linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11141B"/>
+      <stop offset="1" stop-color="#090A0E"/>
+    </linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C5CFC"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="mid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6267F4"/>
+      <stop offset="1" stop-color="#4146C8"/>
+    </linearGradient>
+    <linearGradient id="low" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#393FAF"/>
+    </linearGradient>
   </defs>
-  <rect x="64" y="64" width="896" height="896" rx="218" fill="url(#bg)"/>
-  <path d="M203 267c123 3 199 35 261 110 88 109 119 281 235 358 61 41 142 54 239 32-110 106-270 144-417 88-149-57-252-227-318-588Z" fill="#24312E" transform="translate(-68 -42) scale(.92)"/>
-  <path d="M397 419c116-175 297-237 476-179 42 188-29 379-185 479 38-117 12-215-73-276-64-45-137-53-218-24Z" fill="url(#copper)" transform="translate(-68 -42) scale(.92)"/>
-  <path d="M397 419c81-29 154-21 218 24-35 42-63 92-84 147-54-47-84-107-134-171Z" fill="#f7f1e8" transform="translate(-68 -42) scale(.92)"/>
+  <rect x="52" y="52" width="920" height="920" rx="230" fill="url(#bg)"/>
+  <rect x="52.5" y="52.5" width="919" height="919" rx="229.5" fill="none" stroke="#252A35"/>
+  <path d="M269 292 493 188q20-9 40 0l222 103q29 14 2 30L535 426q-22 10-44 0L268 322q-29-14 1-30Z" fill="url(#top)"/>
+  <path d="M263 447 487 552q25 12 50 0l224-105v103q0 18-17 27L535 678q-23 11-46 0L280 578q-17-8-17-28V447Z" fill="url(#mid)"/>
+  <path d="m401 697 90 42q22 11 44 0l90-42 112 53-201 96q-24 12-49 0l-198-95 112-54Z" fill="url(#low)"/>
 </svg>

@@ -1,26 +1,56 @@
 import { useEffect, useMemo, useState } from 'react'
 
 type ViewName = 'overview' | 'burn' | 'advisor' | 'activity' | 'projects' | 'models' | 'settings'
-type IconName = ViewName | 'pulse' | 'clock' | 'spark' | 'check' | 'warning' | 'arrow' | 'shield'
+type IconName = ViewName | 'pulse' | 'clock' | 'spark' | 'check' | 'warning' | 'arrow' | 'shield' | 'database' | 'terminal'
+type Tone = 'neutral' | 'good' | 'warn' | 'danger' | 'info'
 
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 2 })
 const number = new Intl.NumberFormat()
+
 const emptyTokens: TokenTotals = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, cacheCreation5m: 0, cacheCreation1h: 0, total: 0 }
 const emptyQuota: QuotaStatus = { available: false, source: '', metric: 'tokens', label: '', limit: 0, used: 0, remaining: 0, utilizationPercent: 0, currentPerHour: 0, runwayAvailable: false, runwayHours: 0, projectedAtReset: 0, willExceedBeforeReset: false, confidence: '' }
 const defaultSettings: VarnqorSettings = { version: 1, refreshSeconds: 5, budget: { enabled: false, label: 'Configured daily budget', limitTokens: 0, resetHour: 0 } }
-const emptyStatus: VarnqorSystemStatus = { version:'0.1.0-alpha.1', claude:{detected:false,binaryDetected:false,dataDetected:false,claudeHome:'',projectsPath:'',projects:0,sessions:0}, usage:{date:'',calls:0,sessions:0,projects:0,filesScanned:0,parseWarnings:0,cacheReadShare:0,tokens:emptyTokens,models:[]}, hourly:[], burn:{ready:false,currentPerHour:0,previousPerHour:0,baselinePerHour:0,ratio:0,changePercent:0,trend:'idle',level:'learning',confidence:'insufficient',baselineSamples:0}, forecast:{ready:false,method:'persistence',pressure:'learning',confidence:'insufficient',currentPerHour:0,previousPerHour:0,baselinePerHour:0,pressureRatio:0,trend:'idle',horizonMinutes:120,projectedTokens:0,baselineProjection:0,envelopeLow:0,envelopeHigh:0,runwayAvailable:false,limitSource:'unavailable',points:[]}, quota:emptyQuota, attribution:{calls:0,tokens:emptyTokens,projects:[],sessions:[],models:[],agents:[]}, waste:{toolCalls:0,repeatedReads:0,repeatedSearches:0,oversizedResponses:0,repeatedFailures:0,estimatedRepeatedTokens:0,estimatedSignalTokens:0,confidence:'insufficient',rules:[],findings:[]}, advisor:{mode:'advisory',high:0,medium:0,low:0,recommendations:[]}, sync:{filesSeen:0,filesChanged:0,bytesIndexed:0,recordsObserved:0,parseWarnings:0,rebuilt:false}, storageReady:false }
+const emptyStatus: VarnqorSystemStatus = {
+  version: '0.1.0-alpha.1',
+  claude: { detected: false, binaryDetected: false, dataDetected: false, claudeHome: '', projectsPath: '', projects: 0, sessions: 0 },
+  usage: { date: '', calls: 0, sessions: 0, projects: 0, filesScanned: 0, parseWarnings: 0, cacheReadShare: 0, tokens: emptyTokens, models: [] },
+  hourly: [],
+  burn: { ready: false, currentPerHour: 0, previousPerHour: 0, baselinePerHour: 0, ratio: 0, changePercent: 0, trend: 'idle', level: 'learning', confidence: 'insufficient', baselineSamples: 0 },
+  forecast: { ready: false, method: 'persistence', pressure: 'learning', confidence: 'insufficient', currentPerHour: 0, previousPerHour: 0, baselinePerHour: 0, pressureRatio: 0, trend: 'idle', horizonMinutes: 120, projectedTokens: 0, baselineProjection: 0, envelopeLow: 0, envelopeHigh: 0, runwayAvailable: false, limitSource: 'unavailable', points: [] },
+  quota: emptyQuota,
+  attribution: { calls: 0, tokens: emptyTokens, projects: [], sessions: [], models: [], agents: [] },
+  waste: { toolCalls: 0, repeatedReads: 0, repeatedSearches: 0, oversizedResponses: 0, repeatedFailures: 0, estimatedRepeatedTokens: 0, estimatedSignalTokens: 0, confidence: 'insufficient', rules: [], findings: [] },
+  advisor: { mode: 'advisory', high: 0, medium: 0, low: 0, recommendations: [] },
+  sync: { filesSeen: 0, filesChanged: 0, bytesIndexed: 0, recordsObserved: 0, parseWarnings: 0, rebuilt: false },
+  storageReady: false,
+}
 
 const nav: Array<{ id: ViewName; label: string }> = [
-  { id:'overview', label:'Overview' }, { id:'burn', label:'Burn' }, { id:'advisor', label:'Advisor' },
-  { id:'activity', label:'Activity' }, { id:'projects', label:'Projects' }, { id:'models', label:'Models' }, { id:'settings', label:'Settings' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'burn', label: 'Burn' },
+  { id: 'advisor', label: 'Advisor' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'models', label: 'Models' },
+  { id: 'settings', label: 'Settings' },
 ]
 
+const pageCopy: Record<ViewName, { title: string; subtitle: string }> = {
+  overview: { title: 'Overview', subtitle: 'Live resource intelligence from local agent activity.' },
+  burn: { title: 'Burn', subtitle: 'Pace, pressure, projection and attribution in one place.' },
+  advisor: { title: 'Advisor', subtitle: 'Prioritized actions grounded in observable evidence.' },
+  activity: { title: 'Activity', subtitle: 'Token movement, cache behavior and local indexing health.' },
+  projects: { title: 'Projects', subtitle: 'Understand which workspaces are driving current resource use.' },
+  models: { title: 'Models', subtitle: 'Compare model activity and token composition without cloud telemetry.' },
+  settings: { title: 'Settings', subtitle: 'Tune live refresh, trusted budgets and local diagnostics.' },
+}
+
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
-  const common = { width:size, height:size, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.8, strokeLinecap:'round' as const, strokeLinejoin:'round' as const, 'aria-hidden':true }
-  switch(name){
-    case 'overview': return <svg {...common}><path d="M4 11 12 4l8 7v9H5v-9Z"/><path d="M9 20v-6h6v6"/></svg>
-    case 'burn': return <svg {...common}><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/></svg>
-    case 'advisor': case 'spark': return <svg {...common}><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"/><path d="m18.5 14 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
+  switch (name) {
+    case 'overview': return <svg {...common}><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>
+    case 'burn': return <svg {...common}><path d="M4 19V12M9 19V8M14 19V10M19 19V4"/></svg>
+    case 'advisor': case 'spark': return <svg {...common}><path d="m12 3 1.25 3.75L17 8l-3.75 1.25L12 13l-1.25-3.75L7 8l3.75-1.25L12 3Z"/><path d="m18 14 .7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z"/></svg>
     case 'activity': case 'clock': return <svg {...common}><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg>
     case 'projects': return <svg {...common}><path d="M3.5 7.5h6l2-2h9v13h-17z"/></svg>
     case 'models': return <svg {...common}><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="m4 12 8 4.5 8-4.5M4 16.5l8 4.5 8-4.5"/></svg>
@@ -30,44 +60,466 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     case 'warning': return <svg {...common}><path d="M12 4 3.5 19h17L12 4Z"/><path d="M12 9v4M12 16h.01"/></svg>
     case 'arrow': return <svg {...common}><path d="m9 5 7 7-7 7"/></svg>
     case 'shield': return <svg {...common}><path d="M12 3 5 6v5c0 4.7 3 8.2 7 10 4-1.8 7-5.3 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+    case 'database': return <svg {...common}><ellipse cx="12" cy="5.5" rx="7.5" ry="2.5"/><path d="M4.5 5.5v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6M4.5 11.5v6c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-6"/></svg>
+    case 'terminal': return <svg {...common}><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="m7 9 3 3-3 3M12.5 15H17"/></svg>
   }
 }
 
-function BrandMark({ size=36 }:{ size?:number }) { return <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="brandMark"><path d="M7 15c8 .2 13 2.3 17 7.2 5.8 7.2 7.8 18.7 15.4 23.8 4 2.7 9.3 3.5 15.6 2.1-7.2 7-17.7 9.5-27.4 5.8C17.8 50.2 11.1 39 7 15Z" fill="#24312E"/><path d="M25.5 28.8C33.1 17.3 45 13.2 56.8 17c2.8 12.4-1.9 25-12.2 31.6 2.5-7.7.8-14.2-4.8-18.2-4.2-3-9-3.5-14.3-1.6Z" fill="#C47A49"/><path d="M25.5 28.8c5.3-1.9 10.1-1.4 14.3 1.6-2.3 2.8-4.2 6.1-5.5 9.7-3.5-3.1-5.5-7.1-8.8-11.3Z" fill="#F4EEE4"/></svg> }
-function formatTokens(v:number){return compact.format(Math.max(0,v))}
-function formatTime(v?:string){if(!v)return'No activity';const d=new Date(v);return Number.isNaN(d.getTime())?'No activity':d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
-function formatRunway(q:QuotaStatus){if(!q.available)return'Not set';if(!q.runwayAvailable)return'Idle';return q.runwayHours>=24?`${(q.runwayHours/24).toFixed(1)}d`:`${q.runwayHours.toFixed(1)}h`}
-function tone(v:string){return['critical','high'].includes(v)?'danger':v==='elevated'?'warn':v==='normal'||v==='low'?'good':'neutral'}
-function trend(b:BurnRate){if(!b.ready)return'Learning baseline';if(!b.changePercent)return'Stable';return`${b.changePercent>0?'+':''}${b.changePercent.toFixed(0)}% vs previous hour`}
-function shortSession(v?:string){if(!v)return'Unknown';return v.length>12?`${v.slice(0,8)}…`:v}
-function shortPath(v?:string){if(!v)return'';const p=v.replace(/\\/g,'/').split('/').filter(Boolean);return p.length<=2?v:p.slice(-2).join('/')}
-
-function StatCard({icon,label,value,meta,tone:cardTone='neutral',onClick}:{icon:IconName;label:string;value:string;meta:string;tone?:string;onClick?:()=>void}){return <button className={`statCard tone-${cardTone}`} onClick={onClick}><div className="statTop"><span className="statIcon"><Icon name={icon}/></span><span>{label}</span></div><strong>{value}</strong><small>{meta}</small></button>}
-function Empty({label}:{label:string}){return <div className="emptyState"><BrandMark size={24}/><span>{label}</span></div>}
-function Fact({label,value}:{label:string;value:string}){return <div className="fact"><span>{label}</span><strong>{value}</strong></div>}
-
-function ActivityChart({hourly,total}:{hourly:HourUsage[];total:number}){
- const max=Math.max(1,...hourly.map(i=>i.tokens.total));return <section className="card activityCard"><div className="cardHeader"><div><h2>Activity</h2><p>Hourly token movement today</p></div><span className="quietPill">{formatTokens(total)} today</span></div><div className="chartArea"><div className="chartGrid"><i/><i/><i/><i/></div><div className="barSeries">{hourly.map((item,index)=>{const h=item.tokens.total===0?2:Math.max(4,item.tokens.total/max*100);return <div className="barItem" key={item.start} title={`${formatTime(item.start)} · ${number.format(item.tokens.total)} tokens`}><div className="barValue" style={{height:`${h}%`}}/><span>{index%4===0?new Date(item.start).toLocaleTimeString([],{hour:'2-digit'}):''}</span></div>})}</div></div></section>
+function formatTokens(value: number) { return compact.format(Math.max(0, value)) }
+function formatBytes(value: number) { return `${compact.format(Math.max(0, value))}B` }
+function formatTime(value?: string) {
+  if (!value) return 'No activity'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'No activity' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
-function SystemsCard({status,refreshing,lastUpdated}:{status:VarnqorSystemStatus;refreshing:boolean;lastUpdated:Date|null}){const rows=[['Claude Code',status.claude.detected?'Connected':'Not detected',status.claude.detected],['Local index',status.storageReady?'Ready':'Unavailable',status.storageReady],['Sessions',number.format(status.usage.sessions),true],['Projects',number.format(status.usage.projects),true],['Parse health',status.usage.parseWarnings?`${status.usage.parseWarnings} warnings`:'Healthy',status.usage.parseWarnings===0]] as const;return <section className="card systemsCard"><div className="cardHeader"><div className="statusTitle"><span className={`statusDot ${refreshing?'sync':'ok'}`}/><h2>{refreshing?'Syncing':'Systems'}</h2></div><span className="mutedSmall">{lastUpdated?`Updated ${lastUpdated.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'Waiting'}</span></div><div className="systemRows">{rows.map(([label,value,healthy])=><div className="systemRow" key={label}><span>{label}</span><strong className={healthy?'':'textWarn'}>{value}</strong></div>)}</div></section>}
-function ProjectsCard({items,onOpen}:{items:AttributionItem[];onOpen:()=>void}){return <section className="card compactCard"><div className="cardHeader"><div className="headerWithIcon"><Icon name="projects"/><h2>Projects</h2></div><button className="textButton" onClick={onOpen}>View all</button></div><div className="tableList">{items.length===0?<Empty label="No project activity in this window"/>:items.slice(0,5).map((item,i)=><div className="tableRow" key={item.key}><span className={`projectSwatch swatch-${i%4}`}/><div className="rowMain"><strong>{item.label}</strong><small>{item.calls} calls</small></div><div className="rowMetric"><strong>{formatTokens(item.tokens.total)}</strong><small>{item.sharePercent.toFixed(1)}%</small></div></div>)}</div></section>}
-function ModelsCard({models,onOpen}:{models:ModelUsage[];onOpen:()=>void}){const total=models.reduce((s,m)=>s+m.tokens.total,0);return <section className="card compactCard"><div className="cardHeader"><div className="headerWithIcon"><Icon name="models"/><h2>Models</h2></div><button className="textButton" onClick={onOpen}>View all</button></div><div className="tableList">{models.length===0?<Empty label="No token-bearing model calls today"/>:models.slice(0,5).map((m,i)=><div className="tableRow" key={m.model}><span className={`modelBadge model-${i%4}`}>{m.model.slice(0,1).toUpperCase()}</span><div className="rowMain"><strong>{m.model}</strong><small>{m.calls} calls</small></div><div className="rowMetric"><strong>{formatTokens(m.tokens.total)}</strong><small>{total?`${(m.tokens.total/total*100).toFixed(0)}% share`:'0%'}</small></div></div>)}</div></section>}
-function InsightCard({status,onOpen}:{status:VarnqorSystemStatus;onOpen:()=>void}){const recs=status.advisor.recommendations??[];const waste=status.waste.rules??[];const lines=recs.slice(0,2).map(i=>({title:i.title,meta:i.priority,tone:i.priority}));for(const r of waste.filter(r=>r.signals>0).slice(0,3-lines.length))lines.push({title:r.label,meta:`~${formatTokens(r.estimatedTokens)}`,tone:'medium'});return <section className="card compactCard"><div className="cardHeader"><div className="headerWithIcon copper"><Icon name="advisor"/><h2>Advisor & Waste</h2></div><button className="textButton" onClick={onOpen}>View all</button></div><div className="insightList">{lines.length===0?<Empty label="No actionable signal right now"/>:lines.map((i,n)=><button className="insightRow" key={`${i.title}-${n}`} onClick={onOpen}><span className={`rank rank-${i.tone}`}>{n+1}</span><div><strong>{i.title}</strong><small>{i.meta.toUpperCase()}</small></div><Icon name="arrow" size={15}/></button>)}</div></section>}
+function formatRunway(quota: QuotaStatus) {
+  if (!quota.available) return 'Not set'
+  if (!quota.runwayAvailable) return 'Idle'
+  return quota.runwayHours >= 24 ? `${(quota.runwayHours / 24).toFixed(1)}d` : `${quota.runwayHours.toFixed(1)}h`
+}
+function pressureTone(value: string): Tone {
+  if (value === 'critical' || value === 'high') return 'danger'
+  if (value === 'elevated') return 'warn'
+  if (value === 'normal' || value === 'low') return 'good'
+  return 'neutral'
+}
+function burnMeta(burn: BurnRate) {
+  if (!burn.ready) return 'Learning baseline'
+  if (!burn.changePercent) return 'Stable vs previous hour'
+  return `${burn.changePercent > 0 ? '+' : ''}${burn.changePercent.toFixed(0)}% vs previous hour`
+}
+function shortSession(value?: string) {
+  if (!value) return 'Unknown'
+  return value.length > 12 ? `${value.slice(0, 8)}…` : value
+}
+function shortPath(value?: string) {
+  if (!value) return ''
+  const parts = value.replace(/\\/g, '/').split('/').filter(Boolean)
+  return parts.length <= 2 ? value : parts.slice(-2).join('/')
+}
 
-function Overview({status,refreshing,lastUpdated,setView}:{status:VarnqorSystemStatus;refreshing:boolean;lastUpdated:Date|null;setView:(v:ViewName)=>void}){const projects=status.attribution.projects??[],models=status.usage.models??[],recs=status.advisor.recommendations??[];return <><div className="statsGrid"><StatCard icon="burn" label="Burn rate" value={status.burn.ready?`${status.burn.ratio.toFixed(2)}×`:'Learning'} meta={trend(status.burn)} tone={status.burn.ready&&status.burn.ratio>=1.5?'warn':'neutral'} onClick={()=>setView('burn')}/><StatCard icon="pulse" label="Resource pressure" value={status.forecast.pressure==='learning'?'Learning':status.forecast.pressure[0].toUpperCase()+status.forecast.pressure.slice(1)} meta={`${formatTokens(status.forecast.currentPerHour)}/h current pace`} tone={tone(status.forecast.pressure)} onClick={()=>setView('burn')}/><StatCard icon="clock" label="Runway" value={formatRunway(status.quota)} meta={status.quota.available?`${status.quota.utilizationPercent.toFixed(0)}% of configured budget`:'Configure a local budget'} tone={status.quota.willExceedBeforeReset?'warn':status.quota.available?'good':'neutral'} onClick={()=>setView('settings')}/><StatCard icon="advisor" label="Advisor" value={`${recs.length} ${recs.length===1?'signal':'signals'}`} meta={recs.length?`${status.advisor.high} high priority`:'Nothing urgent'} tone={status.advisor.high>0?'warn':'neutral'} onClick={()=>setView('advisor')}/></div><div className="overviewMain"><ActivityChart hourly={status.hourly??[]} total={status.usage.tokens.total}/><SystemsCard status={status} refreshing={refreshing} lastUpdated={lastUpdated}/></div><div className="overviewBottom"><ProjectsCard items={projects} onOpen={()=>setView('projects')}/><ModelsCard models={models} onOpen={()=>setView('models')}/><InsightCard status={status} onOpen={()=>setView('advisor')}/></div></>}
-function BurnView({status}:{status:VarnqorSystemStatus}){const b=status.burn,f=status.forecast;return <div className="detailLayout"><div className="statsGrid three"><StatCard icon="burn" label="Current burn" value={b.ready?`${b.ratio.toFixed(2)}×`:'Learning'} meta={trend(b)} tone={b.ratio>=1.5?'warn':'neutral'}/><StatCard icon="pulse" label="Current pace" value={`${formatTokens(b.currentPerHour)}/h`} meta={`${formatTokens(b.baselinePerHour)}/h baseline`} tone={tone(f.pressure)}/><StatCard icon="clock" label="Projection" value={formatTokens(f.projectedTokens)} meta={`Next ${f.horizonMinutes} minutes`}/></div><section className="card burnDetail"><div className="cardHeader"><div><h2>Burn profile</h2><p>Rolling activity against your active-hour baseline</p></div><span className={`levelBadge level-${b.level}`}>{b.level}</span></div><div className="burnGauge"><div className="gaugeTrack"><div className="gaugeFill" style={{width:`${b.ready?Math.min(100,Math.max(4,b.ratio/2.5*100)):4}%`}}/><i/></div><div className="gaugeLabels"><span>Low</span><span>Baseline</span><span>Critical</span></div></div><div className="factGrid"><Fact label="Last 60 min" value={formatTokens(b.currentPerHour)}/><Fact label="Previous 60 min" value={formatTokens(b.previousPerHour)}/><Fact label="Baseline" value={formatTokens(b.baselinePerHour)}/><Fact label="Confidence" value={b.confidence}/></div></section><section className="card"><div className="cardHeader"><div><h2>Forecast</h2><p>Persistence projection from the current pace</p></div><span className="quietPill">{f.confidence} confidence</span></div><div className="forecastStrip">{(f.points??[]).map(p=><div key={p.minutes}><span>{p.minutes}m</span><strong>{formatTokens(p.projectedTokens)}</strong><small>{formatTokens(p.envelopeLow)} to {formatTokens(p.envelopeHigh)}</small></div>)}</div></section></div>}
-function AdvisorView({status}:{status:VarnqorSystemStatus}){const recs=status.advisor.recommendations??[],findings=status.waste.findings??[];return <div className="detailLayout twoCol"><section className="card recommendationsCard"><div className="cardHeader"><div><h2>Recommendations</h2><p>Read-only guidance ranked by evidence</p></div><span className="quietPill">{recs.length} active</span></div><div className="recommendationList">{recs.length===0?<Empty label="No recommendation is strong enough to surface"/>:recs.map((i,n)=><article className="recommendation" key={i.id}><span className={`priorityDot priority-${i.priority}`}>{n+1}</span><div><div className="recommendationTitle"><strong>{i.title}</strong><span>{i.priority}</span></div><p>{i.recommendation}</p><small>{i.evidence}</small></div></article>)}</div></section><section className="card evidenceCard"><div className="cardHeader"><div><h2>Waste evidence</h2><p>Heuristic signals, never automatic actions</p></div><span className="quietPill">~{formatTokens(status.waste.estimatedSignalTokens)}</span></div><div className="evidenceList">{findings.length===0?<Empty label="No waste rule matched in the current window"/>:findings.slice(0,8).map((i,n)=><div className="evidenceRow" key={`${i.ruleId}-${n}`}><span className="evidenceIcon"><Icon name="spark" size={15}/></span><div><strong>{i.filePath?shortPath(i.filePath):i.title}</strong><small>{i.title} · {i.confidence} confidence</small></div><span>{i.estimatedTokens?`~${formatTokens(i.estimatedTokens)}`:'Signal'}</span></div>)}</div></section></div>}
-function ActivityView({status}:{status:VarnqorSystemStatus}){return <div className="detailLayout"><ActivityChart hourly={status.hourly??[]} total={status.usage.tokens.total}/><div className="tokenGrid">{[['Input',status.usage.tokens.input],['Output',status.usage.tokens.output],['Cache read',status.usage.tokens.cacheRead],['Cache write',status.usage.tokens.cacheCreation]].map(([l,v])=><div className="tokenBlock" key={String(l)}><span>{l}</span><strong>{formatTokens(Number(v))}</strong></div>)}</div><section className="card"><div className="cardHeader"><div><h2>Local index</h2><p>Incremental source state</p></div><span className="quietPill">{status.storageReady?'SQLite ready':'Unavailable'}</span></div><div className="factGrid"><Fact label="Sources" value={number.format(status.usage.filesScanned)}/><Fact label="Changed" value={number.format(status.sync.filesChanged)}/><Fact label="Records" value={number.format(status.sync.recordsObserved)}/><Fact label="Warnings" value={number.format(status.usage.parseWarnings)}/></div></section></div>}
-function DataTable({items,kind}:{items:AttributionItem[];kind:'project'|'session'}){return <div className="dataTable"><div className="dataHead"><span>Name</span><span>Calls</span><span>Activity</span><span>Share</span></div>{items.length===0?<Empty label="No activity in this window"/>:items.map(i=><div className="dataRow" key={i.key}><div><strong>{kind==='session'?shortSession(i.session||i.label):i.label}</strong><small>{kind==='session'?i.project:'Claude Code'}</small></div><span>{i.calls}</span><span>{formatTokens(i.tokens.total)}</span><span>{i.sharePercent.toFixed(1)}%</span></div>)}</div>}
-function ProjectsView({status}:{status:VarnqorSystemStatus}){return <div className="detailLayout"><section className="card dataCard"><div className="cardHeader"><div><h2>Projects</h2><p>Contribution to the current 60 minute window</p></div><span className="quietPill">{(status.attribution.projects??[]).length} active</span></div><DataTable items={status.attribution.projects??[]} kind="project"/></section><section className="card dataCard"><div className="cardHeader"><div><h2>Sessions</h2><p>Highest activity sessions</p></div><span className="quietPill">{(status.attribution.sessions??[]).length} tracked</span></div><DataTable items={status.attribution.sessions??[]} kind="session"/></section></div>}
-function ModelsView({status}:{status:VarnqorSystemStatus}){const models=status.usage.models??[],agents=status.attribution.agents??[],total=models.reduce((s,m)=>s+m.tokens.total,0);return <div className="detailLayout twoCol"><section className="card dataCard"><div className="cardHeader"><div><h2>Models</h2><p>Token-bearing calls today</p></div><span className="quietPill">{models.length} observed</span></div><div className="dataTable"><div className="dataHead"><span>Model</span><span>Calls</span><span>Activity</span><span>Share</span></div>{models.length===0?<Empty label="No model activity today"/>:models.map(m=><div className="dataRow" key={m.model}><div><strong>{m.model}</strong><small>Claude Code</small></div><span>{m.calls}</span><span>{formatTokens(m.tokens.total)}</span><span>{total?`${(m.tokens.total/total*100).toFixed(1)}%`:'0%'}</span></div>)}</div></section><section className="card"><div className="cardHeader"><div><h2>Agent split</h2><p>Main agent and subagents</p></div></div><div className="agentSplit">{agents.length===0?<Empty label="No agent attribution yet"/>:agents.map(i=><div className="agentRow" key={i.key}><div><strong>{i.label}</strong><small>{i.calls} calls</small></div><span>{i.sharePercent.toFixed(1)}%</span><div className="miniTrack"><i style={{width:`${Math.min(100,i.sharePercent)}%`}}/></div></div>)}</div></section></div>}
-function SettingsView({settings,setSettings,status}:{settings:VarnqorSettings;setSettings:(v:VarnqorSettings)=>void;status:VarnqorSystemStatus}){const[draft,setDraft]=useState(settings),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false),[error,setError]=useState(''),[doctor,setDoctor]=useState<DoctorReport|null>(null),[doctorBusy,setDoctorBusy]=useState(false);useEffect(()=>setDraft(settings),[settings]);const save=async()=>{const fn=window.go?.main?.App?.SaveSettings;if(!fn)return;setSaving(true);setError('');try{const v=await fn(draft);setSettings(v);setDraft(v);setSaved(true);window.setTimeout(()=>setSaved(false),1800)}catch(e){setError(String(e))}finally{setSaving(false)}};const runDoctor=async()=>{const fn=window.go?.main?.App?.RunDoctor;if(!fn)return;setDoctorBusy(true);try{setDoctor(await fn())}finally{setDoctorBusy(false)}};return <div className="settingsLayout"><section className="card settingsCard"><div className="cardHeader"><div><h2>Monitoring</h2><p>Local refresh and configured budget</p></div></div><div className="settingRow"><div><strong>Live refresh</strong><small>Seconds between incremental syncs</small></div><div className="numericField"><input type="number" min="2" max="60" value={draft.refreshSeconds} onChange={e=>setDraft({...draft,refreshSeconds:Number(e.target.value)})}/><span>sec</span></div></div><div className="settingRow"><div><strong>Configured budget</strong><small>Local budget only. Never shown as provider quota.</small></div><button className={`switch ${draft.budget.enabled?'on':''}`} onClick={()=>setDraft({...draft,budget:{...draft.budget,enabled:!draft.budget.enabled}})}><i/></button></div><div className={`settingRow sub ${draft.budget.enabled?'':'disabled'}`}><div><strong>Daily token budget</strong><small>Reset uses your local time</small></div><div className="budgetFieldsInline"><input type="number" min="0" disabled={!draft.budget.enabled} value={draft.budget.limitTokens} onChange={e=>setDraft({...draft,budget:{...draft.budget,limitTokens:Number(e.target.value)}})}/><input type="number" min="0" max="23" disabled={!draft.budget.enabled} value={draft.budget.resetHour} onChange={e=>setDraft({...draft,budget:{...draft.budget,resetHour:Number(e.target.value)}})}/><span>:00</span></div></div>{error&&<div className="inlineError">{error}</div>}<div className="settingsActions"><button className="primaryAction" onClick={save} disabled={saving}>{saving?'Saving…':saved?'Saved':'Save changes'}</button></div></section><section className="card settingsCard"><div className="cardHeader"><div><h2>Diagnostics</h2><p>Verify Claude, storage and local configuration</p></div><button className="secondaryAction" onClick={runDoctor} disabled={doctorBusy}>{doctorBusy?'Checking…':'Run Doctor'}</button></div>{doctor?<div className="doctorList">{(doctor.checks??[]).map(c=><div className="doctorItem" key={c.id}><span className={`doctorStatus ${c.status}`}><Icon name={c.status==='pass'?'check':'warning'} size={14}/></span><div><strong>{c.label}</strong><small>{c.detail}</small></div></div>)}</div>:<div className="diagnosticSummary"><Icon name="shield" size={26}/><div><strong>{status.storageReady&&status.claude.detected?'Core systems available':'Run a diagnostic check'}</strong><small>Doctor does not change files or provider settings.</small></div></div>}</section></div>}
+function Empty({ label }: { label: string }) {
+  return <div className="emptyState"><span className="emptyGlyph"><Icon name="pulse" size={17}/></span><span>{label}</span></div>
+}
 
-export default function App(){
- const[status,setStatus]=useState<VarnqorSystemStatus>(emptyStatus),[settings,setSettings]=useState<VarnqorSettings>(defaultSettings),[view,setView]=useState<ViewName>('overview'),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[lastUpdated,setLastUpdated]=useState<Date|null>(null)
- useEffect(()=>{let active=true;const load=async()=>{const fn=window.go?.main?.App?.GetSettings;if(!fn)return;try{const v=await fn();if(active)setSettings(v)}catch(e){console.error(e)}};void load();return()=>{active=false}},[])
- useEffect(()=>{let disposed=false,busy=false;const load=async()=>{if(busy)return;const fn=window.go?.main?.App?.GetSystemStatus;if(!fn){setLoading(false);return}busy=true;setRefreshing(true);try{const v=await fn();if(!disposed){setStatus(v);setLastUpdated(new Date())}}catch(e){console.error(e)}finally{busy=false;if(!disposed){setLoading(false);setRefreshing(false)}}};void load();const id=window.setInterval(()=>void load(),Math.max(2,settings.refreshSeconds)*1000);return()=>{disposed=true;window.clearInterval(id)}},[settings.refreshSeconds])
- const current=useMemo(()=>nav.find(i=>i.id===view)??nav[0],[view]);const subtitle:Record<ViewName,string>={overview:'Resource intelligence at a glance',burn:'Pace, baseline and near-term pressure',advisor:'Prioritized guidance backed by evidence',activity:'Local usage history and cache activity',projects:'Where the current burn is coming from',models:'Model mix and agent activity',settings:'Monitoring, budget and diagnostics'}
- let content;if(view==='overview')content=<Overview status={status} refreshing={refreshing} lastUpdated={lastUpdated} setView={setView}/>;else if(view==='burn')content=<BurnView status={status}/>;else if(view==='advisor')content=<AdvisorView status={status}/>;else if(view==='activity')content=<ActivityView status={status}/>;else if(view==='projects')content=<ProjectsView status={status}/>;else if(view==='models')content=<ModelsView status={status}/>;else content=<SettingsView settings={settings} setSettings={setSettings} status={status}/>
- return <div className="appShell"><aside className="sidebar"><button className="brand" onClick={()=>setView('overview')}><BrandMark size={37}/><span>Varnqor</span></button><nav className="navList">{nav.map(i=><button key={i.id} className={view===i.id?'active':''} onClick={()=>setView(i.id)}><Icon name={i.id}/><span>{i.label}</span>{view===i.id&&<i/>}</button>)}</nav><div className="sidebarFooter"><div className="connection"><span className={`statusDot ${refreshing?'sync':status.claude.detected?'ok':'off'}`}/><div><strong>{status.claude.detected?'Live':'Waiting'}</strong><small>{status.claude.detected?`Claude Code · ${settings.refreshSeconds}s`:'Claude Code not detected'}</small></div></div><span className="version">{status.version}</span></div></aside><section className="workspace"><header className="workspaceHeader"><div><h1>{current.label}</h1><p>{subtitle[view]}</p></div><div className="workspaceActions"><span className="windowPill"><span className={`statusDot ${refreshing?'sync':'ok'}`}/>{refreshing?'Syncing':'Live'}</span><span className="windowPill"><Icon name="clock" size={15}/>Rolling 60 min</span></div></header>{loading?<div className="loadingGrid"><div/><div/><div/><div/></div>:<div className="workspaceContent">{(status.usageError||status.settingsError)&&<div className="systemNotice"><Icon name="warning" size={16}/><span>{status.usageError||status.settingsError}</span></div>}{content}</div>}</section></div>
+function StatCard({ icon, label, value, meta, tone = 'neutral', onClick }: { icon: IconName; label: string; value: string; meta: string; tone?: Tone; onClick?: () => void }) {
+  return <button className={`statCard tone-${tone}`} onClick={onClick}>
+    <div className="statTop"><span className="statIcon"><Icon name={icon}/></span><span>{label}</span></div>
+    <strong>{value}</strong>
+    <small>{meta}</small>
+  </button>
+}
+
+function ActivityChart({ hourly, total, large = false }: { hourly: HourUsage[]; total: number; large?: boolean }) {
+  const max = Math.max(1, ...hourly.map(item => item.tokens.total))
+  return <section className={`card activityCard ${large ? 'activityLarge' : ''}`}>
+    <div className="cardHeader">
+      <div><h2>Activity</h2><p>Hourly token movement today</p></div>
+      <span className="quietPill">{formatTokens(total)} today</span>
+    </div>
+    <div className="chartArea">
+      <div className="chartGrid"><i/><i/><i/><i/></div>
+      <div className="barSeries">
+        {hourly.map((item, index) => {
+          const height = item.tokens.total === 0 ? 2 : Math.max(4, (item.tokens.total / max) * 100)
+          return <div className="barItem" key={item.start} title={`${formatTime(item.start)} · ${number.format(item.tokens.total)} tokens`}>
+            <div className="barValue" style={{ height: `${height}%` }}/>
+            <span>{index % 4 === 0 ? new Date(item.start).toLocaleTimeString([], { hour: '2-digit' }) : ''}</span>
+          </div>
+        })}
+      </div>
+    </div>
+  </section>
+}
+
+function SystemsCard({ status, refreshing, lastUpdated }: { status: VarnqorSystemStatus; refreshing: boolean; lastUpdated: Date | null }) {
+  const rows = [
+    ['Claude Code', status.claude.detected ? 'Connected' : 'Not detected', status.claude.detected],
+    ['Local index', status.storageReady ? 'Ready' : 'Unavailable', status.storageReady],
+    ['Sessions', number.format(status.usage.sessions), true],
+    ['Projects', number.format(status.usage.projects), true],
+    ['Parse health', status.usage.parseWarnings ? `${status.usage.parseWarnings} warnings` : 'Healthy', status.usage.parseWarnings === 0],
+  ] as const
+  return <section className="card systemsCard">
+    <div className="cardHeader">
+      <div className="statusTitle"><span className={`statusDot ${refreshing ? 'sync' : 'ok'}`}/><h2>{refreshing ? 'Syncing' : 'Systems'}</h2></div>
+      <span className="mutedSmall">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Waiting'}</span>
+    </div>
+    <div className="systemRows">
+      {rows.map(([label, value, healthy]) => <div className="systemRow" key={label}><span>{label}</span><strong className={healthy ? '' : 'textWarn'}>{value}</strong></div>)}
+    </div>
+  </section>
+}
+
+function ProjectsCard({ items, onOpen }: { items: AttributionItem[]; onOpen: () => void }) {
+  return <section className="card compactCard">
+    <div className="cardHeader"><div className="headerWithIcon"><Icon name="projects"/><h2>Projects</h2></div><button className="textButton" onClick={onOpen}>View all</button></div>
+    <div className="tableList">
+      {items.length === 0 ? <Empty label="No project activity in this window"/> : items.slice(0, 5).map((item, index) => <div className="tableRow" key={item.key}>
+        <span className={`projectSwatch swatch-${index % 4}`}/>
+        <div className="rowMain"><strong>{item.label}</strong><small>{item.calls} calls</small></div>
+        <div className="rowMetric"><strong>{formatTokens(item.tokens.total)}</strong><small>{item.sharePercent.toFixed(1)}%</small></div>
+      </div>)}
+    </div>
+  </section>
+}
+
+function ModelsCard({ models, onOpen }: { models: ModelUsage[]; onOpen: () => void }) {
+  const total = models.reduce((sum, model) => sum + model.tokens.total, 0)
+  return <section className="card compactCard">
+    <div className="cardHeader"><div className="headerWithIcon"><Icon name="models"/><h2>Models</h2></div><button className="textButton" onClick={onOpen}>View all</button></div>
+    <div className="tableList">
+      {models.length === 0 ? <Empty label="No token-bearing model calls today"/> : models.slice(0, 5).map((model, index) => <div className="tableRow" key={model.model}>
+        <span className={`modelBadge model-${index % 4}`}>{model.model.slice(0, 1).toUpperCase()}</span>
+        <div className="rowMain"><strong>{model.model}</strong><small>{model.calls} calls</small></div>
+        <div className="rowMetric"><strong>{formatTokens(model.tokens.total)}</strong><small>{total ? `${(model.tokens.total / total * 100).toFixed(0)}% share` : '0%'}</small></div>
+      </div>)}
+    </div>
+  </section>
+}
+
+function InsightCard({ status, onOpen }: { status: VarnqorSystemStatus; onOpen: () => void }) {
+  const recommendations = status.advisor.recommendations ?? []
+  const rules = status.waste.rules ?? []
+  const rows: Array<{ title: string; meta: string; priority: string }> = recommendations.slice(0, 2).map(item => ({ title: item.title, meta: item.priority.toUpperCase(), priority: item.priority }))
+  for (const rule of rules.filter(rule => rule.signals > 0).slice(0, Math.max(0, 3 - rows.length))) rows.push({ title: rule.label, meta: `~${formatTokens(rule.estimatedTokens)}`, priority: 'medium' })
+  return <section className="card compactCard">
+    <div className="cardHeader"><div className="headerWithIcon accent"><Icon name="advisor"/><h2>Advisor & Waste</h2></div><button className="textButton" onClick={onOpen}>View all</button></div>
+    <div className="insightList">
+      {rows.length === 0 ? <Empty label="No actionable signal right now"/> : rows.map((item, index) => <button className="insightRow" key={`${item.title}-${index}`} onClick={onOpen}>
+        <span className={`rank rank-${item.priority}`}>{index + 1}</span>
+        <div><strong>{item.title}</strong><small>{item.meta}</small></div>
+        <Icon name="arrow" size={15}/>
+      </button>)}
+    </div>
+  </section>
+}
+
+function Overview({ status, refreshing, lastUpdated, setView }: { status: VarnqorSystemStatus; refreshing: boolean; lastUpdated: Date | null; setView: (value: ViewName) => void }) {
+  const projects = status.attribution.projects ?? []
+  const models = status.usage.models ?? []
+  const recommendations = status.advisor.recommendations ?? []
+  return <>
+    <div className="statsGrid">
+      <StatCard icon="burn" label="Burn rate" value={status.burn.ready ? `${status.burn.ratio.toFixed(2)}×` : 'Learning'} meta={burnMeta(status.burn)} tone={status.burn.ready && status.burn.ratio >= 1.5 ? 'warn' : 'neutral'} onClick={() => setView('burn')}/>
+      <StatCard icon="pulse" label="Current activity" value={`${formatTokens(status.burn.currentPerHour)}/h`} meta={`${formatTokens(status.usage.tokens.total)} today`} tone="info" onClick={() => setView('activity')}/>
+      <StatCard icon="warning" label="Resource pressure" value={status.forecast.pressure.toUpperCase()} meta={status.forecast.ready ? `${status.forecast.pressureRatio.toFixed(2)}× active baseline` : 'Learning from local history'} tone={pressureTone(status.forecast.pressure)} onClick={() => setView('burn')}/>
+      <StatCard icon="clock" label="Runway" value={formatRunway(status.quota)} meta={status.quota.available ? `${status.quota.utilizationPercent.toFixed(0)}% of configured budget` : 'Set a trusted budget to enable'} tone={status.quota.willExceedBeforeReset ? 'danger' : 'neutral'} onClick={() => setView('settings')}/>
+    </div>
+    <div className="overviewMain"><ActivityChart hourly={status.hourly ?? []} total={status.usage.tokens.total}/><SystemsCard status={status} refreshing={refreshing} lastUpdated={lastUpdated}/></div>
+    <div className="overviewBottom"><ProjectsCard items={projects} onOpen={() => setView('projects')}/><ModelsCard models={models} onOpen={() => setView('models')}/><InsightCard status={status} onOpen={() => setView('advisor')}/></div>
+    {recommendations.length === 0 && status.waste.estimatedSignalTokens === 0 && <div className="softStatus"><span className="statusDot ok"/>No high-value intervention is needed right now.</div>}
+  </>
+}
+
+function BurnView({ status }: { status: VarnqorSystemStatus }) {
+  const projects = status.attribution.projects ?? []
+  const sessions = status.attribution.sessions ?? []
+  const points = status.forecast.points ?? []
+  return <div className="pageStack">
+    <section className={`card burnHero tone-${pressureTone(status.forecast.pressure)}`}>
+      <div className="burnIdentity">
+        <span className="sectionEyebrow">Current pace</span>
+        <div className="burnValue">{status.burn.ready ? `${status.burn.ratio.toFixed(2)}×` : '—'}</div>
+        <div className="burnStatus"><span className={`statusDot ${status.burn.ready ? 'ok' : 'sync'}`}/>{status.burn.ready ? status.burn.level.toUpperCase() : 'LEARNING'}</div>
+      </div>
+      <div className="burnFacts">
+        <div><span>Last 60 min</span><strong>{formatTokens(status.burn.currentPerHour)}</strong></div>
+        <div><span>Previous 60 min</span><strong>{formatTokens(status.burn.previousPerHour)}</strong></div>
+        <div><span>Active baseline</span><strong>{status.burn.baselinePerHour ? formatTokens(status.burn.baselinePerHour) : '—'}</strong></div>
+        <div><span>Confidence</span><strong>{status.burn.confidence.toUpperCase()}</strong></div>
+      </div>
+    </section>
+
+    <div className="burnGrid">
+      <section className="card forecastCard">
+        <div className="cardHeader"><div><h2>Projection</h2><p>Persistence model from current pace</p></div><span className={`pressureChip pressure-${status.forecast.pressure}`}>{status.forecast.pressure.toUpperCase()}</span></div>
+        <div className="projectionHero"><strong>{status.forecast.ready ? formatTokens(status.forecast.projectedTokens) : '—'}</strong><span>projected over {status.forecast.horizonMinutes / 60}h</span></div>
+        <div className="projectionRows">
+          {points.slice(0, 3).map(point => <div key={point.minutes}><span>{point.minutes < 60 ? `${point.minutes}m` : `${point.minutes / 60}h`}</span><strong>{formatTokens(point.projectedTokens)}</strong><small>{formatTokens(point.envelopeLow)}–{formatTokens(point.envelopeHigh)}</small></div>)}
+        </div>
+      </section>
+      <section className="card runwayCard">
+        <div className="cardHeader"><div><h2>Trusted runway</h2><p>{status.quota.available ? status.quota.source.toUpperCase() : 'No configured limit'}</p></div><Icon name="shield"/></div>
+        <div className="runwayValue">{formatRunway(status.quota)}</div>
+        <div className="quotaTrack"><span style={{ width: `${Math.min(100, status.quota.utilizationPercent)}%` }}/></div>
+        <div className="quotaMeta"><span>{status.quota.available ? `${formatTokens(status.quota.used)} used` : 'Configure a daily budget'}</span><strong>{status.quota.available ? `${formatTokens(status.quota.remaining)} remaining` : ''}</strong></div>
+      </section>
+    </div>
+
+    <section className="card tableCard">
+      <div className="cardHeader"><div><h2>Burn drivers</h2><p>Last 60 minutes</p></div><span className="quietPill">{status.attribution.calls} calls</span></div>
+      <div className="dataTable dataTableProjects">
+        <div className="dataHead"><span>Project</span><span>Calls</span><span>Tokens</span><span>Share</span></div>
+        {projects.length === 0 ? <Empty label="No project attribution in this window"/> : projects.slice(0, 8).map(item => <div className="dataRow" key={item.key}><strong>{item.label}</strong><span>{item.calls}</span><span>{formatTokens(item.tokens.total)}</span><span>{item.sharePercent.toFixed(1)}%</span></div>)}
+      </div>
+    </section>
+
+    <section className="card tableCard">
+      <div className="cardHeader"><div><h2>Expensive sessions</h2><p>Highest contributors in the current burn window</p></div></div>
+      <div className="dataTable dataTableSessions">
+        <div className="dataHead"><span>Session</span><span>Project</span><span>Calls</span><span>Tokens</span></div>
+        {sessions.length === 0 ? <Empty label="No sessions attributed in this window"/> : sessions.slice(0, 8).map(item => <div className="dataRow" key={item.key}><strong>{shortSession(item.session ?? item.label)}</strong><span>{item.project || '—'}</span><span>{item.calls}</span><span>{formatTokens(item.tokens.total)}</span></div>)}
+      </div>
+    </section>
+  </div>
+}
+
+function AdvisorView({ status }: { status: VarnqorSystemStatus }) {
+  const recommendations = status.advisor.recommendations ?? []
+  const findings = status.waste.findings ?? []
+  const rules = status.waste.rules ?? []
+  return <div className="pageStack">
+    <div className="advisorSummaryGrid">
+      <StatCard icon="spark" label="High priority" value={String(status.advisor.high)} meta="Immediate review" tone={status.advisor.high ? 'danger' : 'neutral'}/>
+      <StatCard icon="spark" label="Medium priority" value={String(status.advisor.medium)} meta="Worth reviewing" tone={status.advisor.medium ? 'warn' : 'neutral'}/>
+      <StatCard icon="pulse" label="Signal context" value={status.waste.estimatedSignalTokens ? `~${formatTokens(status.waste.estimatedSignalTokens)}` : '—'} meta="Heuristic, overlap possible" tone="info"/>
+    </div>
+
+    <section className="card recommendationsCard">
+      <div className="cardHeader"><div><h2>Recommendations</h2><p>Read-only guidance. Nothing is changed automatically.</p></div><span className="quietPill">ADVISORY ONLY</span></div>
+      <div className="recommendationList">
+        {recommendations.length === 0 ? <Empty label="No recommendation is strong enough to surface"/> : recommendations.map((item, index) => <article className={`recommendation priority-${item.priority}`} key={item.id}>
+          <span className="recommendationIndex">{String(index + 1).padStart(2, '0')}</span>
+          <div className="recommendationBody"><div><span className={`priorityLabel priority-${item.priority}`}>{item.priority}</span><strong>{item.title}</strong></div><p>{item.evidence}</p><small>{item.recommendation}</small></div>
+          <div className="recommendationMetric">{item.estimatedTokens ? <><strong>~{formatTokens(item.estimatedTokens)}</strong><span>signal context</span></> : <span>{item.category}</span>}</div>
+        </article>)}
+      </div>
+    </section>
+
+    <section className="card wasteCard">
+      <div className="cardHeader"><div><h2>Waste intelligence</h2><p>Explainable signals, not a synthetic score</p></div><span className="quietPill">{status.waste.toolCalls} tool calls analyzed</span></div>
+      <div className="ruleGrid">
+        {rules.map(rule => <div className={`ruleTile ${rule.findings ? 'active' : ''}`} key={rule.ruleId}><span>{rule.label}</span><strong>{rule.signals}</strong><small>{rule.findings} findings{rule.estimatedTokens > 0 ? ` · ~${formatTokens(rule.estimatedTokens)}` : ''}</small></div>)}
+      </div>
+      <div className="findingsList">
+        {findings.length === 0 ? <Empty label="No current waste heuristic matched"/> : findings.slice(0, 8).map((finding, index) => <div className="findingRow" key={`${finding.ruleId}-${index}`} title={finding.explanation}>
+          <div><strong>{finding.filePath ? shortPath(finding.filePath) : finding.target || finding.toolName || finding.title}</strong><small>{finding.title} · {finding.project || 'unknown'}</small></div>
+          <span>{finding.toolName || finding.ruleId}</span>
+          <strong>{finding.estimatedTokens > 0 ? `~${formatTokens(finding.estimatedTokens)}` : 'n/a'}</strong>
+          <span>{finding.confidence.toUpperCase()}</span>
+        </div>)}
+      </div>
+    </section>
+  </div>
+}
+
+function ActivityView({ status }: { status: VarnqorSystemStatus }) {
+  const tokens = status.usage.tokens
+  return <div className="pageStack">
+    <div className="tokenGrid">
+      <StatCard icon="pulse" label="Input" value={formatTokens(tokens.input)} meta="Uncached input" tone="neutral"/>
+      <StatCard icon="pulse" label="Output" value={formatTokens(tokens.output)} meta="Generated output" tone="info"/>
+      <StatCard icon="database" label="Cache read" value={formatTokens(tokens.cacheRead)} meta={`${status.usage.cacheReadShare.toFixed(1)}% read share`} tone="good"/>
+      <StatCard icon="database" label="Cache write" value={formatTokens(tokens.cacheCreation)} meta="Created cache input" tone="neutral"/>
+    </div>
+    <ActivityChart hourly={status.hourly ?? []} total={tokens.total} large/>
+    <div className="activityFacts">
+      <section className="card factCard"><Icon name="terminal"/><div><span>API calls</span><strong>{number.format(status.usage.calls)}</strong><small>Token-bearing calls today</small></div></section>
+      <section className="card factCard"><Icon name="projects"/><div><span>Active sessions</span><strong>{number.format(status.usage.sessions)}</strong><small>Observed today</small></div></section>
+      <section className="card factCard"><Icon name="database"/><div><span>Indexed sources</span><strong>{number.format(status.usage.filesScanned)}</strong><small>{formatBytes(status.sync.bytesIndexed)} added in last sync</small></div></section>
+      <section className="card factCard"><Icon name={status.usage.parseWarnings ? 'warning' : 'check'}/><div><span>Parse health</span><strong>{status.usage.parseWarnings ? `${status.usage.parseWarnings} warnings` : 'Healthy'}</strong><small>Local-only parser state</small></div></section>
+    </div>
+  </div>
+}
+
+function ProjectsView({ status }: { status: VarnqorSystemStatus }) {
+  const projects = status.attribution.projects ?? []
+  const sessions = status.attribution.sessions ?? []
+  return <div className="pageStack">
+    <section className="card tableCard">
+      <div className="cardHeader"><div><h2>Projects</h2><p>Share of activity in the current 60-minute window</p></div><span className="quietPill">{projects.length} active</span></div>
+      <div className="dataTable dataTableProjects">
+        <div className="dataHead"><span>Name</span><span>Calls</span><span>Tokens</span><span>Share</span></div>
+        {projects.length === 0 ? <Empty label="No project activity in this window"/> : projects.map(item => <div className="dataRow" key={item.key}><strong>{item.label}</strong><span>{item.calls}</span><span>{formatTokens(item.tokens.total)}</span><span>{item.sharePercent.toFixed(1)}%</span></div>)}
+      </div>
+    </section>
+    <section className="card tableCard">
+      <div className="cardHeader"><div><h2>Sessions</h2><p>Most active sessions by token volume</p></div></div>
+      <div className="dataTable dataTableSessions">
+        <div className="dataHead"><span>Session</span><span>Project</span><span>Calls</span><span>Tokens</span></div>
+        {sessions.length === 0 ? <Empty label="No session attribution available"/> : sessions.slice(0, 12).map(item => <div className="dataRow" key={item.key}><strong>{shortSession(item.session ?? item.label)}</strong><span>{item.project || '—'}</span><span>{item.calls}</span><span>{formatTokens(item.tokens.total)}</span></div>)}
+      </div>
+    </section>
+  </div>
+}
+
+function ModelsView({ status }: { status: VarnqorSystemStatus }) {
+  const models = status.usage.models ?? []
+  const total = models.reduce((sum, model) => sum + model.tokens.total, 0)
+  return <div className="pageStack">
+    <section className="card tableCard">
+      <div className="cardHeader"><div><h2>Models observed</h2><p>Today, from local Claude Code usage events</p></div><span className="quietPill">{models.length} models</span></div>
+      <div className="dataTable dataTableModels">
+        <div className="dataHead"><span>Model</span><span>Calls</span><span>Tokens</span><span>Share</span><span>Cache read</span></div>
+        {models.length === 0 ? <Empty label="No token-bearing model calls today"/> : models.map(model => <div className="dataRow" key={model.model}><strong>{model.model}</strong><span>{model.calls}</span><span>{formatTokens(model.tokens.total)}</span><span>{total ? `${(model.tokens.total / total * 100).toFixed(1)}%` : '0%'}</span><span>{formatTokens(model.tokens.cacheRead)}</span></div>)}
+      </div>
+    </section>
+  </div>
+}
+
+function SettingsView({ settings, setSettings, onSave, saving, saveError, doctor, onDoctor, doctorLoading, version }: {
+  settings: VarnqorSettings
+  setSettings: (value: VarnqorSettings) => void
+  onSave: () => void
+  saving: boolean
+  saveError: string
+  doctor: DoctorReport | null
+  onDoctor: () => void
+  doctorLoading: boolean
+  version: string
+}) {
+  const budget = settings.budget
+  const updateBudget = (patch: Partial<ConfiguredBudgetSettings>) => setSettings({ ...settings, budget: { ...budget, ...patch } })
+  return <div className="settingsLayout">
+    <section className="card settingsCard">
+      <div className="settingsHeader"><div><h2>Live monitor</h2><p>Polling is local and only runs while the desktop app is open.</p></div></div>
+      <label className="settingRow"><div><strong>Refresh interval</strong><small>2 to 60 seconds</small></div><div className="inputWithSuffix"><input type="number" min={2} max={60} value={settings.refreshSeconds} onChange={event => setSettings({ ...settings, refreshSeconds: Number(event.target.value) })}/><span>s</span></div></label>
+
+      <div className="settingsDivider"/>
+      <div className="settingsHeader"><div><h2>Trusted budget</h2><p>A configured budget is your limit, not an official provider quota.</p></div><button className={`switch ${budget.enabled ? 'on' : ''}`} onClick={() => updateBudget({ enabled: !budget.enabled })}><i/></button></div>
+      <label className={`settingRow ${!budget.enabled ? 'disabled' : ''}`}><div><strong>Daily token budget</strong><small>Used for remaining and runway calculations</small></div><input type="number" min={0} step={100000} disabled={!budget.enabled} value={budget.limitTokens} onChange={event => updateBudget({ limitTokens: Number(event.target.value) })}/></label>
+      <label className={`settingRow ${!budget.enabled ? 'disabled' : ''}`}><div><strong>Reset hour</strong><small>Local time, 0–23</small></div><input type="number" min={0} max={23} disabled={!budget.enabled} value={budget.resetHour} onChange={event => updateBudget({ resetHour: Number(event.target.value) })}/></label>
+      {saveError && <div className="inlineError">{saveError}</div>}
+      <div className="settingsActions"><button className="primaryButton" disabled={saving} onClick={onSave}>{saving ? 'Saving…' : 'Save changes'}</button></div>
+    </section>
+
+    <aside className="settingsSide">
+      <section className="card doctorCard">
+        <div className="cardHeader"><div><h2>Diagnostics</h2><p>Local environment checks</p></div><button className="secondaryButton" onClick={onDoctor} disabled={doctorLoading}>{doctorLoading ? 'Running…' : 'Run doctor'}</button></div>
+        {!doctor ? <Empty label="Run Doctor to verify the local environment"/> : <div className="doctorList">{(doctor.checks ?? []).map(check => <div className="doctorItem" key={check.id}><span className={`doctorDot state-${check.status}`}/><div><strong>{check.label}</strong><small>{check.detail}</small></div></div>)}</div>}
+      </section>
+      <section className="card aboutCard"><span>Version</span><strong>{version}</strong><small>Local-first · no telemetry by default</small></section>
+    </aside>
+  </div>
+}
+
+export default function App() {
+  const [view, setView] = useState<ViewName>('overview')
+  const [status, setStatus] = useState<VarnqorSystemStatus>(emptyStatus)
+  const [settings, setSettings] = useState<VarnqorSettings>(defaultSettings)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [doctor, setDoctor] = useState<DoctorReport | null>(null)
+  const [doctorLoading, setDoctorLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    const loadSettings = async () => {
+      const fn = window.go?.main?.App?.GetSettings
+      if (!fn) return
+      try {
+        const value = await fn()
+        if (active) setSettings(value)
+      } catch (error) {
+        console.error('Unable to load settings', error)
+      }
+    }
+    void loadSettings()
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    let busy = false
+    const loadStatus = async () => {
+      if (busy) return
+      const fn = window.go?.main?.App?.GetSystemStatus
+      if (!fn) { setLoading(false); return }
+      busy = true
+      setRefreshing(true)
+      try {
+        const value = await fn()
+        if (!disposed) {
+          setStatus(value)
+          setLastUpdated(new Date())
+        }
+      } catch (error) {
+        console.error('Unable to read system status', error)
+      } finally {
+        busy = false
+        if (!disposed) {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }
+    }
+    void loadStatus()
+    const id = window.setInterval(() => void loadStatus(), Math.max(2, settings.refreshSeconds) * 1000)
+    return () => { disposed = true; window.clearInterval(id) }
+  }, [settings.refreshSeconds])
+
+  const saveSettings = async () => {
+    const fn = window.go?.main?.App?.SaveSettings
+    if (!fn) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      const saved = await fn(settings)
+      setSettings(saved)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const runDoctor = async () => {
+    const fn = window.go?.main?.App?.RunDoctor
+    if (!fn) return
+    setDoctorLoading(true)
+    try {
+      setDoctor(await fn())
+    } catch (error) {
+      console.error('Unable to run Doctor', error)
+    } finally {
+      setDoctorLoading(false)
+    }
+  }
+
+  const body = useMemo(() => {
+    switch (view) {
+      case 'overview': return <Overview status={status} refreshing={refreshing} lastUpdated={lastUpdated} setView={setView}/>
+      case 'burn': return <BurnView status={status}/>
+      case 'advisor': return <AdvisorView status={status}/>
+      case 'activity': return <ActivityView status={status}/>
+      case 'projects': return <ProjectsView status={status}/>
+      case 'models': return <ModelsView status={status}/>
+      case 'settings': return <SettingsView settings={settings} setSettings={setSettings} onSave={saveSettings} saving={saving} saveError={saveError} doctor={doctor} onDoctor={runDoctor} doctorLoading={doctorLoading} version={status.version}/>
+    }
+  }, [view, status, refreshing, lastUpdated, settings, saving, saveError, doctor, doctorLoading])
+
+  const page = pageCopy[view]
+  const liveState = status.usageError ? 'Attention' : refreshing ? 'Syncing' : status.claude.detected ? 'Live' : 'Offline'
+
+  return <div className="appShell">
+    <aside className="sidebar" aria-label="Primary navigation">
+      <div className="sidebarSpacer"/>
+      <nav className="navList">
+        {nav.slice(0, 6).map(item => <button className={`navItem ${view === item.id ? 'active' : ''}`} key={item.id} onClick={() => setView(item.id)}><Icon name={item.id}/><span>{item.label}</span></button>)}
+      </nav>
+      <div className="sidebarBottom">
+        <button className={`navItem ${view === 'settings' ? 'active' : ''}`} onClick={() => setView('settings')}><Icon name="settings"/><span>Settings</span></button>
+        <div className="liveRail"><span className={`statusDot ${refreshing ? 'sync' : status.claude.detected ? 'ok' : 'off'}`}/><div><strong>{liveState}</strong><small>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Waiting for local signal'}</small></div></div>
+      </div>
+    </aside>
+
+    <main className="workspace">
+      <header className="workspaceHeader">
+        <div className="pageIdentity"><h1>{page.title}</h1><p>{page.subtitle}</p></div>
+        <div className="headerTools">
+          <span className={`livePill ${refreshing ? 'syncing' : status.claude.detected ? 'connected' : 'offline'}`}><span className="statusDot"/>{liveState}</span>
+          {view !== 'settings' && <span className="windowPill"><Icon name="clock" size={15}/>Last 60 minutes</span>}
+        </div>
+      </header>
+
+      <div className="workspaceContent">
+        {loading ? <div className="loadingState"><div className="loadingRing"/><span>Reading local activity…</span></div> : body}
+        {status.usageError && <div className="globalNotice error"><Icon name="warning" size={16}/><span>{status.usageError}</span></div>}
+      </div>
+    </main>
+  </div>
 }

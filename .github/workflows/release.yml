@@ -35,7 +35,7 @@ jobs:
           }
       - name: Build portable Windows executable
         shell: pwsh
-        run: wails build -clean -platform windows/amd64 -o varnqor-windows-amd64.exe -ldflags "-X main.Version=${{ steps.version.outputs.value }}"
+        run: wails build -platform windows/amd64 -o varnqor-windows-amd64.exe -ldflags "-X main.Version=${{ steps.version.outputs.value }}"
       - name: Verify CLI
         shell: pwsh
         run: |
