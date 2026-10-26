@@ -1,13 +1,15 @@
 type ClaudeDetection={detected:boolean;binaryDetected:boolean;dataDetected:boolean;claudeHome:string;projectsPath:string;projects:number;sessions:number;lastActivity?:string}
+type ProviderCapabilities={usage:boolean;tools:boolean;limits:boolean}
+type ProviderStatus={id:string;name:string;state:'connected'|'partial'|'ready'|'unavailable'|'error'|string;detected:boolean;binaryDetected:boolean;dataDetected:boolean;homePath?:string;dataPath?:string;observedSessions:number;observedProjects:number;indexedCalls:number;tokensToday:number;filesIndexed:number;parseWarnings:number;unsupportedFiles:number;lastActivity?:string;capabilities:ProviderCapabilities;note?:string;error?:string}
 type TokenTotals={input:number;output:number;cacheCreation:number;cacheRead:number;cacheCreation5m:number;cacheCreation1h:number;total:number}
-type ModelUsage={model:string;calls:number;tokens:TokenTotals}
+type ModelUsage={provider?:string;model:string;calls:number;tokens:TokenTotals}
 type UsageOverview={date:string;calls:number;sessions:number;projects:number;filesScanned:number;parseWarnings:number;cacheReadShare:number;firstActivity?:string;lastActivity?:string;tokens:TokenTotals;models:ModelUsage[]|null}
 type HourUsage={start:string;calls:number;tokens:TokenTotals}
 type BurnRate={ready:boolean;currentPerHour:number;previousPerHour:number;baselinePerHour:number;ratio:number;changePercent:number;trend:'accelerating'|'cooling'|'steady'|'new-spike'|'idle';level:'learning'|'low'|'normal'|'elevated'|'high'|'critical';confidence:'insufficient'|'low'|'medium'|'high';baselineSamples:number}
 type ForecastPoint={minutes:number;projectedTokens:number;baselineTokens:number;envelopeLow:number;envelopeHigh:number}
 type ForecastReport={ready:boolean;method:'persistence'|string;pressure:'learning'|'low'|'normal'|'elevated'|'high'|'critical';confidence:'insufficient'|'low'|'medium'|'high';currentPerHour:number;previousPerHour:number;baselinePerHour:number;pressureRatio:number;trend:string;horizonMinutes:number;projectedTokens:number;baselineProjection:number;envelopeLow:number;envelopeHigh:number;runwayAvailable:boolean;limitSource:string;points:ForecastPoint[]|null}
 type QuotaStatus={available:boolean;source:string;metric:string;label:string;limit:number;used:number;remaining:number;utilizationPercent:number;windowStart?:string;resetAt?:string;currentPerHour:number;runwayAvailable:boolean;runwayHours:number;projectedAtReset:number;willExceedBeforeReset:boolean;confidence:string}
-type AttributionItem={key:string;label:string;project?:string;session?:string;calls:number;tokens:TokenTotals;sharePercent:number}
+type AttributionItem={key:string;label:string;provider?:string;project?:string;session?:string;calls:number;tokens:TokenTotals;sharePercent:number}
 type AttributionReport={start?:string;end?:string;calls:number;tokens:TokenTotals;projects:AttributionItem[]|null;sessions:AttributionItem[]|null;models:AttributionItem[]|null;agents:AttributionItem[]|null}
 type WasteFinding={ruleId:'repeated-file-read'|'repeated-search'|'oversized-tool-response'|'repeated-failed-operation';title:string;severity:'low'|'medium'|'high';confidence:'low'|'medium';project:string;session:string;toolName?:string;filePath?:string;target?:string;readOffset?:number;readLimit?:number;reads?:number;occurrences?:number;repeats?:number;failures?:number;repeatedBytes?:number;resultBytes?:number;estimatedTokens:number;explanation:string}
 type WasteRuleSummary={ruleId:WasteFinding['ruleId'];label:string;findings:number;signals:number;estimatedTokens:number}
@@ -19,5 +21,5 @@ type ConfiguredBudgetSettings={enabled:boolean;label:string;limitTokens:number;r
 type VarnqorSettings={version:number;refreshSeconds:number;budget:ConfiguredBudgetSettings}
 type DoctorCheck={id:string;label:string;status:'pass'|'warn'|'fail';detail:string}
 type DoctorReport={status:'healthy'|'warning'|'error';version:string;pass:number;warn:number;fail:number;checks:DoctorCheck[]|null}
-type VarnqorSystemStatus={version:string;generatedAt?:string;claude:ClaudeDetection;usage:UsageOverview;hourly:HourUsage[]|null;burn:BurnRate;forecast:ForecastReport;quota:QuotaStatus;attribution:AttributionReport;waste:WasteReport;advisor:AdvisorReport;sync:SyncStats;storageReady:boolean;usageError?:string;settingsError?:string}
+type VarnqorSystemStatus={version:string;generatedAt?:string;providers:ProviderStatus[]|null;claude:ClaudeDetection;usage:UsageOverview;hourly:HourUsage[]|null;burn:BurnRate;forecast:ForecastReport;quota:QuotaStatus;attribution:AttributionReport;waste:WasteReport;wasteScope:string;advisor:AdvisorReport;sync:SyncStats;storageReady:boolean;usageError?:string;settingsError?:string}
 interface Window{go?:{main?:{App?:{GetSystemStatus:()=>Promise<VarnqorSystemStatus>;GetSettings:()=>Promise<VarnqorSettings>;SaveSettings:(value:VarnqorSettings)=>Promise<VarnqorSettings>;RunDoctor:()=>Promise<DoctorReport>}}}}
