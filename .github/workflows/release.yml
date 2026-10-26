@@ -53,7 +53,7 @@ jobs:
       - name: Build portable Windows executable
         shell: pwsh
         run: wails build -platform windows/amd64 -o Varnqor.exe -ldflags "-X main.Version=${{ steps.version.outputs.app }}"
-      - name: Verify CLI surface
+      - name: Verify V4 CLI surface
         shell: pwsh
         run: |
           $version = .\build\bin\Varnqor.exe version
@@ -61,13 +61,20 @@ jobs:
           .\build\bin\Varnqor.exe help
           .\build\bin\Varnqor.exe providers --json
           .\build\bin\Varnqor.exe doctor --json
-          .\build\bin\Varnqor.exe config show
-          .\build\bin\Varnqor.exe config theme light
+          .\build\bin\Varnqor.exe config theme dark
           .\build\bin\Varnqor.exe config language en
           .\build\bin\Varnqor.exe config optimize balanced --target 20 --horizon 120 --mode preview
+          .\build\bin\Varnqor.exe config control balanced --burn 1.70 --session 62 --project 72 --budget-warning 80 --active 12 --cooling 45 --horizon 120 --minimum 1000
+          $config = .\build\bin\Varnqor.exe config show --json | ConvertFrom-Json
+          if ($config.version -ne 4) { throw "Expected V4 settings schema" }
+          if ($config.theme -ne 'dark') { throw "Expected V2-dark theme preference" }
+          if ($config.control.profile -ne 'balanced') { throw "Expected balanced control profile" }
           .\build\bin\Varnqor.exe explore --range 1h --json
           .\build\bin\Varnqor.exe pulse --range 1h --json
           .\build\bin\Varnqor.exe optimize --range 1h --json
+          .\build\bin\Varnqor.exe control --range 1h --json
+          $brief = .\build\bin\Varnqor.exe brief --range 1h
+          if ($brief -notmatch 'Varnqor Control Brief') { throw "Control brief smoke failed" }
           .\build\bin\Varnqor.exe export --range 1h --format csv
       - name: Generate SHA-256 checksum
         shell: pwsh
