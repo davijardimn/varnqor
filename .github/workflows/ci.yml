@@ -72,8 +72,12 @@ jobs:
           .\build\bin\varnqor-ci.exe providers --json
           .\build\bin\varnqor-ci.exe doctor --json
           .\build\bin\varnqor-ci.exe config show
+          .\build\bin\varnqor-ci.exe config theme dark
+          .\build\bin\varnqor-ci.exe config language pt-BR
+          .\build\bin\varnqor-ci.exe config optimize economy --target 25 --horizon 360 --mode preview
           .\build\bin\varnqor-ci.exe explore --range 1h --json
           .\build\bin\varnqor-ci.exe pulse --range 1h --json
+          .\build\bin\varnqor-ci.exe optimize --range 1h --json
           .\build\bin\varnqor-ci.exe export --range 1h --format csv
       - name: Generate SHA-256 checksum
         shell: pwsh
