@@ -25,9 +25,10 @@ type UsageCall struct {
 }
 
 type ModelUsage struct {
-	Model  string      `json:"model"`
-	Calls  int         `json:"calls"`
-	Tokens TokenTotals `json:"tokens"`
+	Provider string      `json:"provider,omitempty"`
+	Model    string      `json:"model"`
+	Calls    int         `json:"calls"`
+	Tokens   TokenTotals `json:"tokens"`
 }
 
 type UsageOverview struct {
