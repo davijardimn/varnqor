@@ -18,8 +18,21 @@ type AdvisorRecommendation={id:string;priority:string;category:string;title:stri
 type AdvisorReport={generatedAt?:string;mode:'advisory'|string;high:number;medium:number;low:number;recommendations:AdvisorRecommendation[]|null}
 type SyncStats={filesSeen:number;filesChanged:number;bytesIndexed:number;recordsObserved:number;parseWarnings:number;rebuilt:boolean}
 type ConfiguredBudgetSettings={enabled:boolean;label:string;limitTokens:number;resetHour:number}
-type VarnqorSettings={version:number;refreshSeconds:number;budget:ConfiguredBudgetSettings}
+type GuardrailSettings={enabled:boolean;spikePercent:number;projectConcentrationPercent:number;sessionConcentrationPercent:number;cacheReadMinimumPercent:number;minimumTokens:number}
+type VarnqorSettings={version:number;refreshSeconds:number;budget:ConfiguredBudgetSettings;guardrails:GuardrailSettings}
 type DoctorCheck={id:string;label:string;status:'pass'|'warn'|'fail';detail:string}
 type DoctorReport={status:'healthy'|'warning'|'error';version:string;pass:number;warn:number;fail:number;checks:DoctorCheck[]|null}
 type VarnqorSystemStatus={version:string;generatedAt?:string;providers:ProviderStatus[]|null;claude:ClaudeDetection;usage:UsageOverview;hourly:HourUsage[]|null;burn:BurnRate;forecast:ForecastReport;quota:QuotaStatus;attribution:AttributionReport;waste:WasteReport;wasteScope:string;advisor:AdvisorReport;sync:SyncStats;storageReady:boolean;usageError?:string;settingsError?:string}
-interface Window{go?:{main?:{App?:{GetSystemStatus:()=>Promise<VarnqorSystemStatus>;GetSettings:()=>Promise<VarnqorSettings>;SaveSettings:(value:VarnqorSettings)=>Promise<VarnqorSettings>;RunDoctor:()=>Promise<DoctorReport>}}}}
+
+type ExploreFilter={provider:string;project:string;model:string;rangeMinutes:number;limit:number}
+type WindowSummary={start:string;end:string;calls:number;projects:number;sessions:number;tokens:TokenTotals;cacheReadShare:number}
+type DimensionActivity={provider?:string;name:string;calls:number;sessions:number;tokens:TokenTotals;sharePercent:number;lastActivity?:string}
+type SessionActivity={provider:string;project:string;session:string;calls:number;tokens:TokenTotals;sharePercent:number;firstActivity:string;lastActivity:string;subagent:boolean}
+type CallActivity={provider:string;project:string;session:string;model:string;timestamp:string;tokens:TokenTotals;subagent:boolean}
+type TimelineBucket={start:string;calls:number;tokens:TokenTotals}
+type CompareReport={tokensChangePercent:number;callsChangePercent:number;cacheChangePoints:number;direction:'up'|'down'|'steady'|string}
+type ExploreFacets={providers:string[]|null;projects:string[]|null;models:string[]|null}
+type PulseSignal={id:string;severity:'low'|'medium'|'high'|string;kind:string;title:string;detail:string;value:number;threshold:number;provider?:string;project?:string;session?:string}
+type ExploreReport={generatedAt:string;filter:ExploreFilter;bucketMinutes:number;current:WindowSummary;previous:WindowSummary;comparison:CompareReport;timeline:TimelineBucket[]|null;providers:DimensionActivity[]|null;projects:DimensionActivity[]|null;models:DimensionActivity[]|null;sessions:SessionActivity[]|null;recent:CallActivity[]|null;facets:ExploreFacets;signals:PulseSignal[]|null}
+
+interface Window{go?:{main?:{App?:{GetSystemStatus:()=>Promise<VarnqorSystemStatus>;GetSettings:()=>Promise<VarnqorSettings>;SaveSettings:(value:VarnqorSettings)=>Promise<VarnqorSettings>;RunDoctor:()=>Promise<DoctorReport>;GetExplore:(filter:ExploreFilter)=>Promise<ExploreReport>;ExportExplore:(filter:ExploreFilter,format:string)=>Promise<string>}}}}
