@@ -24,6 +24,9 @@ jobs:
       - name: Install Wails
         shell: pwsh
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+      - name: Generate branded application icon
+        shell: pwsh
+        run: go run ./cmd/icon-gen
       - name: Resolve version
         id: version
         shell: pwsh

@@ -58,6 +58,9 @@ jobs:
       - name: Install Wails
         shell: pwsh
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
+      - name: Generate branded application icon
+        shell: pwsh
+        run: go run ./cmd/icon-gen
       - name: Build Windows desktop
         shell: pwsh
         run: wails build -platform windows/amd64 -o varnqor-ci.exe -ldflags "-X main.Version=ci-${{ github.sha }}"
