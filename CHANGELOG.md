@@ -2,7 +2,57 @@
 
 All notable Varnqor changes are tracked here.
 
-## 3.0.0 — development
+## 4.0.0 — development
+
+### Control Plane
+- Reframed Varnqor from a set of observability dashboards into a local decision-support control plane.
+- Added a unified Control Room fed by provider health, Explorer, Burn, Forecast, configured runway and Optimize.
+- Added explicit `nominal`, `watch`, `intervene`, `critical`, `idle`, and `disabled` control states without introducing an opaque score.
+- Added explainable incidents for provider health, burn ceiling, project concentration, mission/session concentration, cache-read floor and configured-budget pressure.
+- Added a prioritized Decision Queue combining control-specific interventions with existing bounded Optimize playbooks.
+- Provider ingestion failures and critical configured-budget conditions now outrank a quiet token window rather than being mislabeled as Idle.
+
+### Missions
+- Added operational Mission objects derived from recent provider/session activity.
+- Added Active, Cooling and Idle lifecycle states with configurable local windows.
+- Added mission pressure, selected-window share, normalized velocity, call count, provider identity and activity age.
+- Added direct mission routing into scoped Investigate and Optimize workflows.
+- Mission activity is explicitly an inference from local telemetry, not external process control.
+
+### Policies
+- Added settings schema v4 and automatic migration from V3.
+- Added Balanced, Economy and Throughput Control Plane policy profiles.
+- Added visible thresholds for burn ceiling, session/project dominance, cache floor, configured-budget warning, mission lifecycle, decision horizon and minimum evaluation volume.
+- Preserved explicit user Light theme choices during migration while moving V3 System/default installs to the V2-dark identity.
+- Added `varnqor config control` with preset selection and threshold overrides.
+
+### Desktop generation 4
+- Replaced the V3 desktop entrypoint completely; `AppV3.tsx` and its design system no longer ship.
+- Restored the actual V2 dark color system: `#0A0C10`, `#0D1015`, `#10141A`, `#171D27`, `#7267FF`, `#9C95FF`, `#5B91FF`, and `#38D6A2`.
+- Built a new compact icon rail and operational workspace rather than restoring the old V2 layout.
+- Reorganized the product around Control Room, Missions, Investigate, Optimize, Policies, Agents and Settings.
+- Kept the workspace free of Varnqor logo/wordmark chrome.
+- Changed the native Wails startup background to V2 dark to avoid the old warm-light flash before React loads.
+- Dark is the V4 default; Light and System remain supported using the same cool V2 accent family.
+
+### Control Brief
+- Added a privacy-safe markdown Control Brief containing resource posture, incidents, decisions and bounded action steps.
+- Added `varnqor brief` with the same provider/project/session/model/range scope as investigation commands.
+- Control Briefs do not reconstruct prompts, source-code bodies or raw tool-result bodies.
+
+### CLI and release gates
+- Added `varnqor control [--json]`.
+- Added `varnqor brief`.
+- Extended Windows CI and stable release smokes to verify settings schema v4, V2-dark theme persistence, control-policy persistence, Control Plane output and Control Brief output against the actual Wails executable.
+- Development version advanced to `4.0.0-dev`.
+
+### Safety and correctness
+- External automatic execution remains unavailable: V4 does not silently rewrite prompts, change models, terminate sessions or execute provider tools.
+- Scoped control views do not borrow the global learned burn baseline and present it as scope-specific evidence.
+- Configured budgets remain local user budgets and are never labeled as provider quotas.
+- Impact ranges remain heuristic and non-additive.
+
+## 3.0.0 — 2026-10-26
 
 ### Optimize
 - Added the first Varnqor Optimize engine, completing the original intelligence loop through reviewable optimization plans.
@@ -15,128 +65,49 @@ All notable Varnqor changes are tracked here.
 
 ### Session intelligence
 - Added exact session filtering to the local Explorer query engine and CLI.
-- Added Session Lab to the desktop with scoped totals, calls, average tokens/call, cache-read share, timeline, activity bounds, provider identity, and recent calls.
-- Added one-step routing from a hot session into a session-scoped Optimize plan.
+- Added Session Lab with scoped totals, calls, cache share, timeline, provider identity and recent calls.
+- Added one-step routing from a hot session into session-scoped Optimize.
 - Prevented global learned baselines from being presented as session/project/model-specific baselines.
 
 ### Desktop generation 3
-- Replaced the V2 frontend with a single V3 desktop architecture.
-- Reoriented Overview around current posture, agent fleet, concentration, and the highest-value Optimize actions.
-- Added dedicated Sessions and Optimize surfaces.
-- Added a new warm light enterprise design system and restrained graphite dark design system.
-- Added Light, Dark, and System appearance choices with immediate switching and local persistence.
-- Kept Varnqor branding out of the sidebar workspace.
-- Preserved Ctrl/Cmd+K navigation and added theme switching to the command palette.
+- Replaced the V2 frontend with one V3 desktop architecture.
+- Added Light, Dark and System appearance choices, localization and provider marks.
+- Added Sessions and Optimize surfaces while retaining Explorer/Pulse/Burn/Advisor intelligence.
 
-### Localization
-- Added settings schema v3 with automatic migration from V1/V2 preferences.
-- Added System, English, Portuguese (Brazil), Spanish, German, and French desktop language choices.
-- Added centralized message fallback so diagnostics/provider-generated dynamic text can safely fall back to English.
-- Added CLI configuration for language and theme preferences.
-
-### Agent identity
-- Added locally bundled Claude Code, Codex, and Gemini CLI vector marks to provider badges, fleet cards, session rows, and provider detail surfaces.
-- Added third-party notices for the MIT-licensed Lobe Icons source vectors and trademark identification.
-- No CDN/network request is required to render provider marks.
-
-### CLI and release gates
-- Added `varnqor config language` and `varnqor config theme`.
-- Added `varnqor config optimize <balanced|economy|throughput|off>` with target/horizon/mode options.
-- Extended Windows CI and release smoke tests to execute theme/language/optimization settings and `varnqor optimize` against the real Wails executable.
-- Development version advanced to `3.0.0-dev`.
-
-### Privacy and correctness
-- Optimize runs on existing local usage metadata and privacy-minimized Waste evidence.
-- No new prompt, source-code body, or raw tool-result persistence is required.
-- Session-scoped investigation preserves provider identity and does not claim unavailable scope-specific baselines.
-- Optimization target scenarios are not provider quotas.
+### Localization and agent identity
+- Added System, English, Portuguese (Brazil), Spanish, German and French desktop language choices.
+- Added locally bundled Claude Code, Codex and Gemini CLI marks and third-party notices.
 
 ## 2.0.0 — 2026-10-26
 
 ### Investigation workspace
-- Added Explorer with selectable windows from 15 minutes to 7 days and desktop presets for 1h, 6h, 24h, and 7d.
-- Added provider, project, and model filtering over normalized local usage.
-- Added automatic comparison against the immediately preceding equal-length window.
-- Added adaptive timeline buckets, provider/project/model dimensions, hot-session ranking, and recent token-bearing call history.
-- Added JSON and CSV snapshots for the selected Explorer window.
+- Added Explorer with selectable windows from 15 minutes to 7 days and presets for 1h, 6h, 24h and 7d.
+- Added provider/project/model filtering and equal-window comparisons.
+- Added timeline buckets, attribution, hot-session ranking and recent token-bearing calls.
+- Added JSON and CSV snapshots.
 
 ### Pulse
-- Added explainable local guardrails instead of an opaque health/waste score.
-- Added token-spike, project-concentration, session-concentration, low-cache-reuse, and session-fragmentation signals.
-- Added local guardrail configuration and automatic settings migration from v1.
-- Added a minimum-volume threshold to avoid firing signals on trivial usage.
-- Pulse is advisory only and never changes agent configuration or behavior.
+- Added deterministic local guardrails for token spikes, project/session concentration, cache reuse and fragmentation.
+- Added local guardrail settings and minimum evaluation volume.
 
-### Desktop
-- Rebuilt the active frontend around Overview, Explorer, Pulse, Activity, Burn, Advisor, Projects, Models, Agents, and Settings.
-- Added global range switching and context-aware Explorer filters.
-- Added Ctrl/Cmd+K quick navigation and range commands.
-- Overview, Activity, Projects, and Models use the same selected temporal window rather than mixing unrelated periods.
-- Removed the inactive v1 frontend and design system so only one desktop architecture ships.
-- Kept the workspace brand-free: no logo or wordmark occupies the sidebar.
-
-### CLI
-- Added `varnqor explore` with range/provider/project/model/limit filters.
-- Added `varnqor pulse` for deterministic guardrail output.
-- Added `varnqor export` with JSON and CSV output.
-- Extended Windows smoke tests to execute the new commands against the built executable.
-
-### Data and correctness
-- Added temporal window summaries and equal-window comparison directly on the local SQLite index.
-- Added provider-aware dimension/session queries and recent-call retrieval.
-- Kept zero-token/internal placeholder records excluded from investigation surfaces.
-- Preserved the provider capability boundary: Claude tool metadata drives Waste; Codex/Gemini usage contributes to resource intelligence without pretending tool parity.
-
-### Privacy
-- Explorer and Pulse operate entirely on the existing local metadata index.
-- No new prompt, source-code body, or raw tool-result persistence is required for Varnqor 2 investigation features.
+### Desktop and CLI
+- Rebuilt the active frontend around investigation workflows.
+- Added `varnqor explore`, `varnqor pulse`, and `varnqor export`.
+- Preserved local-first privacy and provider-aware attribution.
 
 ## 1.0.0 — 2026-10-26
 
-### Product
-- Promoted Varnqor from pre-alpha to the first stable product model.
-- Added a provider-first desktop experience with dedicated Overview, Agents, Burn, Advisor, Activity, Projects, Models, and Settings views.
-- Replaced generic empty dashboards with state-aware UX for observed sessions, token-bearing activity, baseline learning, and missing trusted limits.
-- Removed the entire pre-1.0 frontend generation so only one design system ships.
+### Product and providers
+- Promoted Varnqor to the first stable product model.
+- Added Claude Code, Codex and Gemini CLI local provider adapters.
+- Added provider capability/health reporting, multi-provider usage, attribution, Burn, Forecast, configured runway, Waste and Advisor.
+- Kept Claude as the deepest tool-level adapter.
 
-### Providers
-- Added a generic provider status and capability model.
-- Added Codex local session detection and JSONL token-usage indexing.
-- Added Gemini CLI local session detection and JSON/JSONL token-usage indexing.
-- Kept Claude Code as the deepest adapter with usage plus privacy-minimized tool metadata.
-- Added an Agents / Provider Hub surface that reports per-provider health, sessions, indexed calls, tokens, capabilities, unsupported files, and last activity.
-- Codex compressed `.jsonl.zst` sessions are explicitly reported as unsupported rather than silently ignored.
-
-### Data correctness
-- Split observed local sessions from token-bearing usage.
-- Added aggregate multi-provider usage, hourly history, burn, attribution, forecast, and configured-budget runway.
-- Added automatic cleanup for pre-1.0 zero-token usage rows.
-- Removed internal/synthetic model labels from user-facing product surfaces.
-- Made attribution provider-aware to prevent project/session/model collisions across providers.
-- Added safe re-indexing for rewritten legacy Gemini JSON sessions.
-- Isolated provider index failures so one adapter cannot take down the whole dashboard.
-
-### Intelligence
-- Preserved explainable Burn Rate, Resource Pressure, forecasting, configured trusted runway, Waste Intelligence, and Advisor.
-- Global burn/forecast includes supported token usage from Claude, Codex, and Gemini.
-- Waste Intelligence remains explicitly Claude-tool scoped until Codex/Gemini tool adapters meet the same evidence/privacy bar.
-- Advisor remains read-only and advisory.
-
-### CLI & diagnostics
-- Added `varnqor providers` / `varnqor agents`.
-- Updated `status`, `analyze`, and `forecast` for aggregate multi-provider telemetry.
-- Updated Doctor to detect supported providers without treating optional missing providers as failures.
-- Added a data-model hygiene check to Doctor.
-- JSON output remains available for automation.
-
-### Privacy
-- No prompt text, source-code bodies, or tool-result bodies are required for usage analysis.
-- Claude tool metadata continues to store only privacy-minimized evidence needed by Waste heuristics.
-- Configured budgets are explicitly labeled as user-configured, never official provider quotas.
-
-### Build & release
-- Version set to `1.0.0`.
-- Windows Wails smoke builds, CLI smoke tests, deterministic app icon generation, and SHA-256 checksums remain release gates.
+### Privacy and correctness
+- Split observed sessions from token-bearing usage.
+- Preserved provider identity in normalized history.
+- Kept prompt text, source-code bodies and raw tool-result bodies outside the analytics index.
+- Labeled configured budgets as user-configured rather than official quota.
 
 ## 0.1.0-alpha.1 — development line
 
