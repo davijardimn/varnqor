@@ -1,0 +1,123 @@
+/* Desktop polish layer. Keeps the token-flow identity while reducing web-dashboard cues. */
+:root {
+  --desktop-panel: #101319;
+  --desktop-surface: #141820;
+  --desktop-line: rgba(255,255,255,.065);
+  --desktop-line-strong: rgba(255,255,255,.105);
+}
+
+.appShell { grid-template-columns: 188px minmax(0,1fr); }
+.sidebar { padding: 14px 10px 12px; background:#0C0E13; }
+.sidebarSpacer { height:8px; }
+.navList { gap:2px; }
+.navItem { height:38px; gap:10px; padding:0 11px; border-radius:7px; }
+.navItem span { font-size:12px; font-weight:550; }
+.navItem.active { background:rgba(99,102,241,.105); box-shadow:inset 2px 0 0 #777AF7; }
+.navItem:hover { background:rgba(255,255,255,.025); }
+.sidebarBottom { gap:8px; }
+.liveRail { padding:11px 10px 2px; gap:9px; }
+
+.workspace { background:#0B0C10; }
+.workspaceHeader { flex-basis:76px; min-height:76px; padding:0 24px; background:#0B0C10; backdrop-filter:none; }
+.pageIdentity h1 { font-size:24px; font-weight:620; letter-spacing:-.034em; }
+.pageIdentity p { margin-top:6px; font-size:11px; color:#747D8E; }
+.headerTools { gap:7px; }
+.livePill,.windowPill { min-height:32px; border-radius:8px; background:#0F1218; }
+.workspaceContent { padding:20px 24px 28px; }
+
+.card { border-color:var(--desktop-line); border-radius:9px; background:var(--desktop-panel); box-shadow:none; }
+.cardHeader { min-height:50px; padding:13px 15px 11px; }
+.cardHeader h2 { font-size:12px; font-weight:600; }
+.cardHeader p { margin-top:3px; font-size:9.5px; }
+.quietPill { min-height:25px; background:#12161D; }
+
+/* A single telemetry rail instead of four detached SaaS cards. */
+.statsGrid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:0;
+  overflow:hidden;
+  border:1px solid var(--desktop-line);
+  border-radius:9px;
+  background:var(--desktop-panel);
+}
+.statCard {
+  min-height:100px;
+  border:0;
+  border-right:1px solid var(--desktop-line);
+  border-radius:0;
+  padding:13px 16px 12px;
+  background:transparent;
+  transition:background .12s ease;
+}
+.statCard:last-child { border-right:0; }
+.statCard:hover { transform:none; border-color:transparent; background:rgba(255,255,255,.018); }
+.statCard::after { display:none; }
+.statTop { gap:7px; font-size:9.5px; }
+.statIcon { width:23px; height:23px; border:0; border-radius:6px; background:transparent; }
+.statIcon svg { width:16px; height:16px; }
+.statCard > strong { margin-top:11px; font-size:22px; font-weight:620; letter-spacing:-.035em; }
+.statCard > small { padding-top:7px; font-size:8.8px; }
+.statCard.tone-info .statIcon,.statCard.tone-good .statIcon,.statCard.tone-warn .statIcon,.statCard.tone-danger .statIcon { background:transparent; }
+
+.overviewMain { grid-template-columns:minmax(0,1.8fr) minmax(245px,.62fr); gap:10px; margin-top:10px; }
+.overviewBottom { gap:10px; margin-top:10px; }
+.activityCard { min-height:300px; }
+.chartArea { height:244px; padding:18px 16px 17px; }
+.chartGrid { inset:21px 16px 35px; }
+.barSeries { gap:4px; }
+.barValue { border-radius:2px 2px 0 0; box-shadow:none; }
+.systemRows { padding:0 14px 10px; }
+.systemRow { min-height:39px; }
+.compactCard { min-height:242px; }
+.tableList { padding:2px 13px 9px; }
+.tableRow { min-height:42px; }
+
+/* Empty states should read like native application states, not placeholder illustrations. */
+.emptyState {
+  min-height:64px;
+  flex-direction:row;
+  justify-content:flex-start;
+  gap:8px;
+  padding:13px 15px;
+  color:#626B7B;
+  font-size:9px;
+  text-align:left;
+}
+.emptyGlyph { width:24px; height:24px; flex:0 0 auto; border:0; border-radius:6px; background:#151922; color:#5E6880; }
+.emptyGlyph svg { width:14px; height:14px; }
+.softStatus { min-height:34px; margin-top:8px; padding:0 2px; border:0; border-radius:0; background:transparent; color:#69756E; }
+
+/* Less visual chrome in secondary panels. */
+.projectSwatch { width:16px; height:16px; border-radius:4px; }
+.modelBadge { width:22px; height:22px; border-radius:6px; }
+.insightRow { min-height:50px; }
+.rank { width:22px; height:22px; border-radius:6px; }
+
+.pageStack { gap:10px; }
+.burnHero { min-height:170px; }
+.burnGrid { gap:10px; }
+.tokenGrid,.advisorSummaryGrid,.activityFacts { gap:10px; }
+
+@media (max-width: 1120px) {
+  .appShell { grid-template-columns:170px minmax(0,1fr); }
+  .workspaceHeader { padding:0 20px; }
+  .workspaceContent { padding:18px 20px 24px; }
+  .overviewMain { grid-template-columns:minmax(0,1fr) 235px; }
+  .overviewBottom { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .overviewBottom > :last-child { grid-column:1 / -1; }
+}
+
+@media (max-width: 980px) {
+  .appShell { grid-template-columns:62px minmax(0,1fr); }
+  .sidebar { padding-left:8px; padding-right:8px; }
+  .navItem { justify-content:center; padding:0; }
+  .navItem span,.liveRail > div { display:none; }
+  .liveRail { grid-template-columns:1fr; place-items:center; padding:12px 0 2px; }
+  .overviewMain { grid-template-columns:1fr; }
+  .overviewBottom { grid-template-columns:1fr; }
+  .overviewBottom > :last-child { grid-column:auto; }
+  .statsGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .statCard:nth-child(2) { border-right:0; }
+  .statCard:nth-child(-n+2) { border-bottom:1px solid var(--desktop-line); }
+}
