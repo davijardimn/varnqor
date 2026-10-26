@@ -69,6 +69,8 @@ jobs:
         run: |
           .\build\bin\varnqor-ci.exe version
           .\build\bin\varnqor-ci.exe help
+          .\build\bin\varnqor-ci.exe providers --json
+          .\build\bin\varnqor-ci.exe doctor --json
           .\build\bin\varnqor-ci.exe config show
       - name: Generate SHA-256 checksum
         shell: pwsh
