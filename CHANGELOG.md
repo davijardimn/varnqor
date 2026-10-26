@@ -2,6 +2,46 @@
 
 All notable Varnqor changes are tracked here.
 
+## 2.0.0 — 2026-10-26
+
+### Investigation workspace
+- Added Explorer with selectable windows from 15 minutes to 7 days and desktop presets for 1h, 6h, 24h, and 7d.
+- Added provider, project, and model filtering over normalized local usage.
+- Added automatic comparison against the immediately preceding equal-length window.
+- Added adaptive timeline buckets, provider/project/model dimensions, hot-session ranking, and recent token-bearing call history.
+- Added JSON and CSV snapshots for the selected Explorer window.
+
+### Pulse
+- Added explainable local guardrails instead of an opaque health/waste score.
+- Added token-spike, project-concentration, session-concentration, low-cache-reuse, and session-fragmentation signals.
+- Added local guardrail configuration and automatic settings migration from v1.
+- Added a minimum-volume threshold to avoid firing signals on trivial usage.
+- Pulse is advisory only and never changes agent configuration or behavior.
+
+### Desktop
+- Rebuilt the active frontend around Overview, Explorer, Pulse, Activity, Burn, Advisor, Projects, Models, Agents, and Settings.
+- Added global range switching and context-aware Explorer filters.
+- Added Ctrl/Cmd+K quick navigation and range commands.
+- Overview, Activity, Projects, and Models now use the same selected temporal window rather than mixing unrelated periods.
+- Removed the inactive v1 frontend and design system so only one desktop architecture ships.
+- Kept the workspace brand-free: no logo or wordmark occupies the sidebar.
+
+### CLI
+- Added `varnqor explore` with range/provider/project/model/limit filters.
+- Added `varnqor pulse` for deterministic guardrail output.
+- Added `varnqor export` with JSON and CSV output.
+- Extended Windows smoke tests to execute the new commands against the built executable.
+
+### Data and correctness
+- Added temporal window summaries and equal-window comparison directly on the local SQLite index.
+- Added provider-aware dimension/session queries and recent-call retrieval.
+- Kept zero-token/internal placeholder records excluded from investigation surfaces.
+- Preserved the provider capability boundary: Claude tool metadata drives Waste; Codex/Gemini usage contributes to resource intelligence without pretending tool parity.
+
+### Privacy
+- Explorer and Pulse operate entirely on the existing local metadata index.
+- No new prompt, source-code body, or raw tool-result persistence is required for Varnqor 2 investigation features.
+
 ## 1.0.0 — 2026-10-26
 
 ### Product
@@ -29,8 +69,8 @@ All notable Varnqor changes are tracked here.
 
 ### Intelligence
 - Preserved explainable Burn Rate, Resource Pressure, forecasting, configured trusted runway, Waste Intelligence, and Advisor.
-- Global burn/forecast now includes supported token usage from Claude, Codex, and Gemini.
-- Waste Intelligence remains explicitly Claude-tool scoped in 1.0 until Codex/Gemini tool adapters meet the same evidence/privacy bar.
+- Global burn/forecast includes supported token usage from Claude, Codex, and Gemini.
+- Waste Intelligence remains explicitly Claude-tool scoped until Codex/Gemini tool adapters meet the same evidence/privacy bar.
 - Advisor remains read-only and advisory.
 
 ### CLI & diagnostics
