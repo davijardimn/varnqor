@@ -51,6 +51,12 @@ func (s *Store) Explore(value domain.ExploreFilter, now time.Time) (domain.Explo
 	facets, err := s.exploreFacets(filter)
 	if err != nil { return domain.ExploreReport{}, err }
 
+	tokensComparable := previous.Tokens.Total > 0
+	callsComparable := previous.Calls > 0
+	cacheComparable := promptTokens(current.Tokens) > 0 && promptTokens(previous.Tokens) > 0
+	cacheDelta := float64(0)
+	if cacheComparable { cacheDelta = math.Round((current.CacheReadShare-previous.CacheReadShare)*10)/10 }
+
 	return domain.ExploreReport{
 		GeneratedAt: now,
 		Filter: filter,
@@ -60,7 +66,10 @@ func (s *Store) Explore(value domain.ExploreFilter, now time.Time) (domain.Explo
 		Comparison: domain.CompareReport{
 			TokensChangePercent: percentDelta(current.Tokens.Total, previous.Tokens.Total),
 			CallsChangePercent: percentDelta(int64(current.Calls), int64(previous.Calls)),
-			CacheChangePoints: math.Round((current.CacheReadShare-previous.CacheReadShare)*10)/10,
+			CacheChangePoints: cacheDelta,
+			TokensComparable: tokensComparable,
+			CallsComparable: callsComparable,
+			CacheComparable: cacheComparable,
 			Direction: compareDirection(current.Tokens.Total, previous.Tokens.Total),
 		},
 		Timeline: timeline,
@@ -78,7 +87,7 @@ func (s *Store) exploreSummary(filter domain.ExploreFilter, start, end time.Time
 	query := `SELECT COUNT(*),COUNT(DISTINCT provider||char(31)||project),COUNT(DISTINCT provider||char(31)||project||char(31)||session),COALESCE(SUM(input_tokens),0),COALESCE(SUM(output_tokens),0),COALESCE(SUM(cache_creation_tokens),0),COALESCE(SUM(cache_read_tokens),0),COALESCE(SUM(cache_creation_5m_tokens),0),COALESCE(SUM(cache_creation_1h_tokens),0),COALESCE(SUM(total_tokens),0) FROM usage_calls WHERE ` + where
 	result := domain.WindowSummary{Start:start, End:end}
 	if err := s.db.QueryRow(query,args...).Scan(&result.Calls,&result.Projects,&result.Sessions,&result.Tokens.Input,&result.Tokens.Output,&result.Tokens.CacheCreation,&result.Tokens.CacheRead,&result.Tokens.CacheCreation5m,&result.Tokens.CacheCreation1h,&result.Tokens.Total); err != nil { return result, err }
-	prompt := result.Tokens.Input + result.Tokens.CacheCreation + result.Tokens.CacheRead
+	prompt := promptTokens(result.Tokens)
 	if prompt > 0 { result.CacheReadShare = float64(result.Tokens.CacheRead)/float64(prompt)*100 }
 	return result,nil
 }
@@ -120,7 +129,7 @@ func (s *Store) exploreFacets(filter domain.ExploreFilter)(domain.ExploreFacets,
 	facets:=domain.ExploreFacets{}
 	providers,err:=s.distinctStrings(`SELECT DISTINCT provider FROM usage_calls WHERE total_tokens>0 ORDER BY provider`,nil);if err!=nil{return facets,err};facets.Providers=providers
 	projectWhere:="total_tokens>0";projectArgs:=[]any{};if filter.Provider!=""{projectWhere+=" AND provider=?";projectArgs=append(projectArgs,filter.Provider)}
-	projects,err:=s.distinctStrings(`SELECT DISTINCT project FROM usage_calls WHERE `+projectWhere+` AND TRIM(project)<>'' ORDER BY project`,projectArgs);if err!=nil{return facets,err};for i:=range projects{projects[i]=displayProject(projects[i])};facets.Projects=uniqueSorted(projects)
+	projects,err:=s.distinctStrings(`SELECT DISTINCT project FROM usage_calls WHERE `+projectWhere+` AND TRIM(project)<>'' AND project<>'unknown' ORDER BY project`,projectArgs);if err!=nil{return facets,err};facets.Projects=uniqueSorted(projects)
 	modelWhere:=projectWhere;modelArgs:=append([]any{},projectArgs...);if filter.Project!=""{modelWhere+=" AND project=?";modelArgs=append(modelArgs,filter.Project)}
 	models,err:=s.distinctStrings(`SELECT DISTINCT model FROM usage_calls WHERE `+modelWhere+` AND TRIM(model)<>'' AND model NOT LIKE '<%>' ORDER BY model`,modelArgs);if err!=nil{return facets,err};facets.Models=models
 	return facets,nil
@@ -130,7 +139,8 @@ func (s *Store) distinctStrings(query string,args []any)([]string,error){rows,er
 
 func exploreWhere(filter domain.ExploreFilter,start,end time.Time)(string,[]any){parts:=[]string{"timestamp_ms>=?","timestamp_ms<?","total_tokens>0"};args:=[]any{start.UnixMilli(),end.UnixMilli()};if filter.Provider!=""{parts=append(parts,"provider=?");args=append(args,filter.Provider)};if filter.Project!=""{parts=append(parts,"project=?");args=append(args,filter.Project)};if filter.Model!=""{parts=append(parts,"model=?");args=append(args,filter.Model)};return strings.Join(parts," AND "),args}
 func exploreBucketMinutes(minutes int)int{switch{case minutes<=120:return 5;case minutes<=720:return 30;case minutes<=2880:return 60;default:return 360}}
-func percentDelta(current,previous int64)float64{if previous==0{if current==0{return 0};return 100};return math.Round((float64(current-previous)/float64(previous)*100)*10)/10}
-func compareDirection(current,previous int64)string{if current>previous{return"up"};if current<previous{return"down"};return"steady"}
+func promptTokens(tokens domain.TokenTotals)int64{return tokens.Input+tokens.CacheCreation+tokens.CacheRead}
+func percentDelta(current,previous int64)float64{if previous==0{return 0};return math.Round((float64(current-previous)/float64(previous)*100)*10)/10}
+func compareDirection(current,previous int64)string{if previous==0&&current>0{return"new"};if current>previous{return"up"};if current<previous{return"down"};return"steady"}
 func providerDisplayName(value string)string{switch value{case"claude":return"Claude Code";case"codex":return"Codex";case"gemini":return"Gemini CLI";default:return value}}
 func uniqueSorted(values []string)[]string{seen:=map[string]bool{};out:=[]string{};for _,v:=range values{v=strings.TrimSpace(v);if v==""||seen[v]{continue};seen[v]=true;out=append(out,v)};sort.Strings(out);return out}
