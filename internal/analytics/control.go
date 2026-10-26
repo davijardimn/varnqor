@@ -167,7 +167,17 @@ func BuildControlPlane(
 	if len(result.Decisions)>8 { result.Decisions=result.Decisions[:8] }
 	for _,incident:=range result.Incidents{switch incident.Severity{case"high":result.HighIncidents++;case"medium":result.MediumIncidents++;default:result.LowIncidents++}}
 
-	if explore.Current.Tokens.Total==0 && result.ActiveProviders==0 { result.State="idle" } else if hasCriticalControlIncident(result.Incidents,quota) { result.State="critical" } else if result.HighIncidents>0 || hasDecisionPriority(result.Decisions,"high") { result.State="intervene" } else if result.MediumIncidents>0 || hasDecisionPriority(result.Decisions,"medium") { result.State="watch" }
+	// Health and trusted-budget failures always outrank a quiet token window.
+	// Otherwise a broken provider could incorrectly make the Control Room look idle.
+	if hasCriticalControlIncident(result.Incidents,quota) {
+		result.State="critical"
+	} else if result.HighIncidents>0 || hasDecisionPriority(result.Decisions,"high") {
+		result.State="intervene"
+	} else if result.MediumIncidents>0 || hasDecisionPriority(result.Decisions,"medium") {
+		result.State="watch"
+	} else if explore.Current.Tokens.Total==0 && result.ActiveProviders==0 {
+		result.State="idle"
+	}
 	return result
 }
 
