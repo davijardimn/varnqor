@@ -62,6 +62,9 @@ jobs:
           .\build\bin\Varnqor.exe providers --json
           .\build\bin\Varnqor.exe doctor --json
           .\build\bin\Varnqor.exe config show
+          .\build\bin\Varnqor.exe explore --range 1h --json
+          .\build\bin\Varnqor.exe pulse --range 1h --json
+          .\build\bin\Varnqor.exe export --range 1h --format csv
       - name: Generate SHA-256 checksum
         shell: pwsh
         run: |
