@@ -26,6 +26,14 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+      - name: Verify V4 desktop entrypoint
+        shell: pwsh
+        run: |
+          $entry = Get-Content '.\frontend\src\main.tsx' -Raw
+          if ($entry -notmatch "AppV4") { throw 'AppV4 is not the active desktop entrypoint' }
+          if ($entry -notmatch "v4.css") { throw 'V4 design system is not active' }
+          if (Test-Path '.\frontend\src\AppV3.tsx') { throw 'Obsolete AppV3 must not ship' }
+          if (Test-Path '.\frontend\src\v3.css') { throw 'Obsolete V3 design system must not ship' }
       - name: Install Wails
         shell: pwsh
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
