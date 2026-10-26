@@ -62,6 +62,9 @@ type CompareReport struct {
 	TokensChangePercent float64 `json:"tokensChangePercent"`
 	CallsChangePercent  float64 `json:"callsChangePercent"`
 	CacheChangePoints   float64 `json:"cacheChangePoints"`
+	TokensComparable    bool    `json:"tokensComparable"`
+	CallsComparable     bool    `json:"callsComparable"`
+	CacheComparable     bool    `json:"cacheComparable"`
 	Direction           string  `json:"direction"`
 }
 
