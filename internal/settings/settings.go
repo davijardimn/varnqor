@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-const currentVersion = 2
+const currentVersion = 3
 
 type ConfiguredBudget struct {
 	Enabled     bool   `json:"enabled"`
@@ -26,11 +27,22 @@ type GuardrailSettings struct {
 	MinimumTokens               int64   `json:"minimumTokens"`
 }
 
+type OptimizationSettings struct {
+	Enabled                bool    `json:"enabled"`
+	Goal                   string  `json:"goal"`
+	TargetReductionPercent float64 `json:"targetReductionPercent"`
+	HorizonMinutes         int     `json:"horizonMinutes"`
+	ExecutionMode          string  `json:"executionMode"`
+}
+
 type Settings struct {
-	Version        int               `json:"version"`
-	RefreshSeconds int               `json:"refreshSeconds"`
-	Budget         ConfiguredBudget  `json:"budget"`
-	Guardrails     GuardrailSettings `json:"guardrails"`
+	Version        int                  `json:"version"`
+	RefreshSeconds int                  `json:"refreshSeconds"`
+	Language       string               `json:"language"`
+	Theme          string               `json:"theme"`
+	Budget         ConfiguredBudget     `json:"budget"`
+	Guardrails     GuardrailSettings    `json:"guardrails"`
+	Optimization   OptimizationSettings `json:"optimization"`
 }
 
 func defaultGuardrails() GuardrailSettings {
@@ -44,20 +56,33 @@ func defaultGuardrails() GuardrailSettings {
 	}
 }
 
+func defaultOptimization() OptimizationSettings {
+	return OptimizationSettings{
+		Enabled:                true,
+		Goal:                   "balanced",
+		TargetReductionPercent: 20,
+		HorizonMinutes:         120,
+		ExecutionMode:          "preview",
+	}
+}
+
 func Default() Settings {
 	return Settings{
 		Version:        currentVersion,
 		RefreshSeconds: 5,
+		Language:       "system",
+		Theme:          "system",
 		Budget: ConfiguredBudget{
 			Label:     "Configured daily budget",
 			ResetHour: 0,
 		},
-		Guardrails: defaultGuardrails(),
+		Guardrails:   defaultGuardrails(),
+		Optimization: defaultOptimization(),
 	}
 }
 
 func Normalize(value Settings) Settings {
-	legacy := value.Version < currentVersion
+	previousVersion := value.Version
 	value.Version = currentVersion
 	if value.RefreshSeconds < 2 {
 		value.RefreshSeconds = 2
@@ -77,7 +102,7 @@ func Normalize(value Settings) Settings {
 	if value.Budget.LimitTokens < 0 {
 		value.Budget.LimitTokens = 0
 	}
-	if legacy {
+	if previousVersion < 2 {
 		value.Guardrails = defaultGuardrails()
 	}
 	if value.Guardrails.SpikePercent <= 0 {
@@ -89,11 +114,67 @@ func Normalize(value Settings) Settings {
 	if value.Guardrails.SessionConcentrationPercent <= 0 {
 		value.Guardrails.SessionConcentrationPercent = 60
 	}
-	if value.Guardrails.CacheReadMinimumPercent <= 0 {
+	if value.Guardrails.CacheReadMinimumPercent < 0 {
 		value.Guardrails.CacheReadMinimumPercent = 15
 	}
 	if value.Guardrails.MinimumTokens <= 0 {
 		value.Guardrails.MinimumTokens = 1000
+	}
+
+	if previousVersion < 3 {
+		value.Language = "system"
+		value.Theme = "system"
+		value.Optimization = defaultOptimization()
+	}
+	value.Language = normalizeLanguage(value.Language)
+	value.Theme = normalizeTheme(value.Theme)
+	value.Optimization.Goal = strings.ToLower(strings.TrimSpace(value.Optimization.Goal))
+	value.Optimization.ExecutionMode = strings.ToLower(strings.TrimSpace(value.Optimization.ExecutionMode))
+	if value.Optimization.Goal == "" {
+		value.Optimization.Goal = "balanced"
+	}
+	if value.Optimization.ExecutionMode == "" {
+		value.Optimization.ExecutionMode = "preview"
+	}
+	if value.Optimization.TargetReductionPercent <= 0 {
+		value.Optimization.TargetReductionPercent = 20
+	}
+	if value.Optimization.HorizonMinutes <= 0 {
+		value.Optimization.HorizonMinutes = 120
+	}
+	if value.Optimization.HorizonMinutes < 30 {
+		value.Optimization.HorizonMinutes = 30
+	}
+	if value.Optimization.HorizonMinutes > 1440 {
+		value.Optimization.HorizonMinutes = 1440
+	}
+	return value
+}
+
+func normalizeLanguage(value string) string {
+	value = strings.TrimSpace(value)
+	switch strings.ToLower(value) {
+	case "", "system", "auto":
+		return "system"
+	case "en", "en-us", "en-gb":
+		return "en"
+	case "pt", "pt-br", "pt_br":
+		return "pt-BR"
+	case "es", "es-es", "es-419":
+		return "es"
+	case "de", "de-de":
+		return "de"
+	case "fr", "fr-fr":
+		return "fr"
+	default:
+		return value
+	}
+}
+
+func normalizeTheme(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" || value == "auto" {
+		return "system"
 	}
 	return value
 }
@@ -101,6 +182,12 @@ func Normalize(value Settings) Settings {
 func Validate(value Settings) error {
 	if value.RefreshSeconds < 2 || value.RefreshSeconds > 60 {
 		return errors.New("refreshSeconds must be between 2 and 60")
+	}
+	if !oneOf(value.Language, "system", "en", "pt-BR", "es", "de", "fr") {
+		return errors.New("language must be system, en, pt-BR, es, de, or fr")
+	}
+	if !oneOf(value.Theme, "system", "light", "dark") {
+		return errors.New("theme must be system, light, or dark")
 	}
 	if value.Budget.ResetHour < 0 || value.Budget.ResetHour > 23 {
 		return errors.New("budget.resetHour must be between 0 and 23")
@@ -123,7 +210,28 @@ func Validate(value Settings) error {
 	if value.Guardrails.MinimumTokens < 1 {
 		return errors.New("guardrails.minimumTokens must be greater than zero")
 	}
+	if !oneOf(value.Optimization.Goal, "balanced", "economy", "throughput") {
+		return errors.New("optimization.goal must be balanced, economy, or throughput")
+	}
+	if value.Optimization.TargetReductionPercent < 5 || value.Optimization.TargetReductionPercent > 60 {
+		return errors.New("optimization.targetReductionPercent must be between 5 and 60")
+	}
+	if value.Optimization.HorizonMinutes < 30 || value.Optimization.HorizonMinutes > 1440 {
+		return errors.New("optimization.horizonMinutes must be between 30 and 1440")
+	}
+	if !oneOf(value.Optimization.ExecutionMode, "preview", "manual") {
+		return errors.New("optimization.executionMode must be preview or manual")
+	}
 	return nil
+}
+
+func oneOf(value string, options ...string) bool {
+	for _, option := range options {
+		if value == option {
+			return true
+		}
+	}
+	return false
 }
 
 func DefaultPath() (string, error) {
