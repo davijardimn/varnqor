@@ -21,12 +21,12 @@ func main() {
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:     "Varnqor",
-		Width:     1320,
-		Height:    840,
+		Width:     1380,
+		Height:    880,
 		MinWidth:  980,
 		MinHeight: 680,
 		AssetServer: &assetserver.Options{Assets: assets},
-		BackgroundColour: &options.RGBA{R: 11, G: 12, B: 16, A: 1},
+		BackgroundColour: &options.RGBA{R: 244, G: 241, B: 234, A: 1},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
 		Bind:             []interface{}{app},
