@@ -27,11 +27,21 @@ func TestExploreFiltersAndComparesWindows(t *testing.T) {
 
 	report,err:=store.Explore(domain.ExploreFilter{RangeMinutes:60,Limit:20},now);if err!=nil{t.Fatal(err)}
 	if report.Current.Tokens.Total!=250||report.Previous.Tokens.Total!=100{t.Fatalf("unexpected windows: current=%d previous=%d",report.Current.Tokens.Total,report.Previous.Tokens.Total)}
-	if report.Comparison.TokensChangePercent!=150{t.Fatalf("delta=%v",report.Comparison.TokensChangePercent)}
+	if report.Comparison.TokensChangePercent!=150||!report.Comparison.TokensComparable{t.Fatalf("comparison=%+v",report.Comparison)}
 	if len(report.Timeline)!=12{t.Fatalf("timeline buckets=%d",len(report.Timeline))}
 	if len(report.Projects)!=2||report.Projects[0].Name!="alpha"{t.Fatalf("projects=%+v",report.Projects)}
 
 	filtered,err:=store.Explore(domain.ExploreFilter{Provider:"codex",RangeMinutes:60},now);if err!=nil{t.Fatal(err)}
 	if filtered.Current.Tokens.Total!=50||filtered.Current.Calls!=1{t.Fatalf("filtered=%+v",filtered.Current)}
 	if len(filtered.Providers)!=1||filtered.Providers[0].Provider!="codex"{t.Fatalf("providers=%+v",filtered.Providers)}
+}
+
+func TestExploreDoesNotInventPercentChangeWithoutPreviousWindow(t *testing.T){
+	store,err:=Open(filepath.Join(t.TempDir(),"varnqor.db"));if err!=nil{t.Fatal(err)};defer store.Close()
+	now:=time.Date(2026,10,26,12,0,0,0,time.UTC)
+	record:=UsageRecord{Key:"new",Provider:"claude",SourcePath:"claude.jsonl",SourceOffset:1,Call:domain.UsageCall{MessageID:"new",RequestID:"new",Timestamp:now.Add(-10*time.Minute),Model:"claude-sonnet",Project:"alpha",Session:"s1",StopReason:"end",Tokens:domain.TokenTotals{Input:90,Output:10,Total:100}}}
+	if err:=store.ApplyFile(SourceState{Provider:"claude",Path:"claude.jsonl",Size:10,ModTimeNS:1,Offset:10,Checkpoint:"x"},[]UsageRecord{record});err!=nil{t.Fatal(err)}
+	report,err:=store.Explore(domain.ExploreFilter{RangeMinutes:60},now);if err!=nil{t.Fatal(err)}
+	if report.Comparison.TokensComparable{t.Fatalf("unexpected comparable report: %+v",report.Comparison)}
+	if report.Comparison.TokensChangePercent!=0||report.Comparison.Direction!="new"{t.Fatalf("unexpected new-window comparison: %+v",report.Comparison)}
 }
