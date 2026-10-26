@@ -1,26 +1,63 @@
 # Privacy
 
-Varnqor is local-first.
+Varnqor is local-first by design.
 
-The default product direction is:
+## Default boundary
 
-- no cloud account required;
-- no telemetry by default;
+Varnqor 1.0 does not require a Varnqor cloud account or provider API key for local analysis. Its default product boundary is:
+
 - no prompt upload;
-- no source-code upload;
+- no source-code body upload;
+- no assistant-response upload;
+- no tool-result body persistence;
 - no hidden background data export;
-- read-only access to supported agent data unless a future feature clearly asks for permission.
+- no product telemetry required for local analysis;
+- read-only access to supported agent session data.
 
-## Data minimisation
+## What the usage index stores
 
-Collectors prefer metadata required for resource analysis over conversation content.
+For supported providers, Varnqor stores only resource/accounting metadata needed for observability:
 
-The local usage index stores token/accounting metadata. The tool index stores only fields needed for explainable rules: tool name, timestamps, project/session identifiers, file or search-scope path when available, Read range, result byte length, error state, and a SHA-256 fingerprint of canonical tool input.
+- provider;
+- timestamp;
+- model label when available;
+- project/workspace label when available;
+- session identifier;
+- subagent flag when the provider exposes it;
+- input/output/cache token counts;
+- source-file path and source offset used for incremental indexing.
 
-Raw tool input is discarded after fingerprinting. Varnqor does not persist prompt text, assistant text, file contents, tool-result text, Bash commands, Grep patterns, or Write/Edit payloads.
+Observed session files and token-bearing usage are treated as different concepts. A local session can exist without producing a token usage row.
 
-The fingerprint is used only to compare whether two local operations had the same canonical input. It is not encryption and is not uploaded by default.
+## Claude tool metadata
+
+Claude Code currently has the deepest tool-level adapter. For explainable Waste rules, Varnqor may store:
+
+- tool name;
+- timestamp;
+- project/session identifiers;
+- file or safe scope path when exposed by the tool input;
+- Read offset/limit;
+- tool-result byte length;
+- error state;
+- SHA-256 fingerprint of canonical tool input.
+
+Raw tool input is discarded after fingerprinting. Varnqor does not persist prompt text, assistant text, file contents, tool-result text, Bash commands, Grep patterns, or Write/Edit payloads in the tool index.
+
+The fingerprint exists only to compare whether two local operations had the same canonical input. It is not encryption and is not uploaded by default.
+
+## Codex and Gemini
+
+Codex and Gemini 1.0 adapters index usage/resource metadata from supported local session formats. They do not contribute tool-level Waste findings in 1.0.
+
+Codex compressed `.jsonl.zst` archives are detected and reported as unsupported rather than silently decoded or ignored.
+
+## Local storage
+
+Historical metadata is stored in Varnqor's local SQLite database under the user's application configuration directory. Settings are also local.
+
+The 1.0 upgrade performs a one-time data-hygiene migration that removes legacy zero-token usage rows and normalizes internal placeholder model labels. It does not delete valid token history or Claude tool metadata.
 
 ## Future online features
 
-If Varnqor later adds optional online features, they must be opt-in and documented separately. Local analysis should remain useful without them.
+Any future feature that sends Varnqor data off-device must be explicit, opt-in, and documented separately. Local analysis should remain useful without an online service.
