@@ -5,6 +5,7 @@ import "time"
 type AttributionItem struct {
 	Key          string      `json:"key"`
 	Label        string      `json:"label"`
+	Provider     string      `json:"provider,omitempty"`
 	Project      string      `json:"project,omitempty"`
 	Session      string      `json:"session,omitempty"`
 	Calls        int         `json:"calls"`
