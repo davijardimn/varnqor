@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - 'v*'
+  create:
 
 permissions:
   contents: write
@@ -12,9 +13,12 @@ permissions:
 jobs:
   windows:
     name: Windows portable release
+    if: github.event_name != 'create' || (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/v'))
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'create' && github.event.ref || github.ref }}
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26.x'
@@ -33,17 +37,27 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ github.ref_type }}' -eq 'tag') {
-            "value=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+            $tag = '${{ github.ref_name }}'
+          } elseif ('${{ github.event_name }}' -eq 'create') {
+            $releaseRef = '${{ github.event.ref }}'
+            if (-not $releaseRef.StartsWith('release/v')) { throw "Unsupported release branch: $releaseRef" }
+            $tag = $releaseRef.Substring('release/'.Length)
           } else {
-            "value=1.0.0+${{ github.run_number }}" >> $env:GITHUB_OUTPUT
+            $versionFile = Get-Content '.\version.go' -Raw
+            if ($versionFile -notmatch 'var Version = "([^"]+)"') { throw 'Unable to resolve version.go' }
+            $tag = "v$($Matches[1])"
           }
+          $appVersion = $tag.TrimStart('v')
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "app=$appVersion" >> $env:GITHUB_OUTPUT
       - name: Build portable Windows executable
         shell: pwsh
-        run: wails build -platform windows/amd64 -o Varnqor.exe -ldflags "-X main.Version=${{ steps.version.outputs.value }}"
+        run: wails build -platform windows/amd64 -o Varnqor.exe -ldflags "-X main.Version=${{ steps.version.outputs.app }}"
       - name: Verify CLI surface
         shell: pwsh
         run: |
-          .\build\bin\Varnqor.exe version
+          $version = .\build\bin\Varnqor.exe version
+          if ($version -notmatch '${{ steps.version.outputs.app }}') { throw "Unexpected runtime version: $version" }
           .\build\bin\Varnqor.exe help
           .\build\bin\Varnqor.exe providers --json
           .\build\bin\Varnqor.exe doctor --json
@@ -56,15 +70,32 @@ jobs:
           "$hash  Varnqor.exe" | Out-File -Encoding ascii '.\build\bin\Varnqor.exe.sha256'
       - uses: actions/upload-artifact@v4
         with:
-          name: varnqor-windows-amd64-${{ steps.version.outputs.value }}
+          name: varnqor-windows-amd64-${{ steps.version.outputs.tag }}
           path: |
             build/bin/Varnqor.exe
             build/bin/Varnqor.exe.sha256
           if-no-files-found: error
-      - name: Publish GitHub release for tags
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create stable tag from release branch
+        if: github.event_name == 'create'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "${{ github.ref_name }}" "build/bin/Varnqor.exe" "build/bin/Varnqor.exe.sha256" --title "Varnqor ${{ github.ref_name }}" --generate-notes
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:RELEASE_TAG" --silent 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$env:RELEASE_TAG" -f sha="$env:GITHUB_SHA"
+          }
+      - name: Publish stable GitHub release
+        if: github.event_name == 'create' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release view "$env:RELEASE_TAG" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "$env:RELEASE_TAG" "build/bin/Varnqor.exe" "build/bin/Varnqor.exe.sha256" --clobber
+          } else {
+            gh release create "$env:RELEASE_TAG" "build/bin/Varnqor.exe" "build/bin/Varnqor.exe.sha256" --target "$env:GITHUB_SHA" --title "Varnqor $env:RELEASE_TAG" --generate-notes
+          }
