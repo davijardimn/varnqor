@@ -20,6 +20,8 @@ func runCLI(args []string) (bool, int) {
 	case "doctor": return runDoctorCLI(args[1:])
 	case "providers", "agents": return runProvidersCLI(args[1:])
 	case "status": return runStatusCLI(args[1:])
+	case "control": return runControlCLI(args[1:])
+	case "brief": return runBriefCLI(args[1:])
 	case "explore": return runExploreCLI(args[1:])
 	case "pulse": return runPulseCLI(args[1:])
 	case "optimize": return runOptimizeCLI(args[1:])
@@ -70,49 +72,42 @@ func printJSON(value any) { data,err:=json.MarshalIndent(value,"","  ");if err!=
 func statusExitCode(message string) int { if message != "" { return 1 }; return 0 }
 
 func printCLIHelp() {
-	fmt.Printf(`Varnqor %s — resource intelligence for AI coding agents
+	fmt.Printf(`Varnqor %s — control plane for AI coding-agent resources
 
 Usage:
   varnqor                              Open Varnqor Desktop
+  varnqor control [options]            Missions, incidents and decision queue
+  varnqor brief [options]              Generate a privacy-safe control brief
   varnqor status [--json]              Aggregate local usage summary
   varnqor providers [--json]           Claude, Codex and Gemini provider status
   varnqor explore [options]            Investigate a time window
   varnqor pulse [options]              Evaluate local guardrail signals
   varnqor optimize [options]           Build bounded optimization playbooks
-  varnqor export [options]             Export the selected window as JSON or CSV
-  varnqor analyze [--json]             Burn drivers, waste signals and Advisor guidance
-  varnqor forecast [--json]            Resource pressure, projection and trusted runway
+  varnqor export [options]             Export selected activity as JSON or CSV
+  varnqor analyze [--json]             Burn drivers, waste signals and guidance
+  varnqor forecast [--json]            Resource pressure, projection and runway
   varnqor doctor [--json]              Diagnose providers, storage and settings
   varnqor config show                  Show local settings
   varnqor config refresh 5             Set live refresh interval (2-60s)
   varnqor config language pt-BR        Set UI language (system/en/pt-BR/es/de/fr)
   varnqor config theme dark            Set appearance (system/light/dark)
   varnqor config optimize economy      Set optimization strategy
-  varnqor config optimize off          Disable optimization playbooks
+  varnqor config control economy       Set Control Plane policy profile
   varnqor config budget 10m            Enable a configured daily budget
-  varnqor config budget off            Disable the configured daily budget
   varnqor version                      Print the application version
   varnqor help                         Show this help
 
-Investigation options:
+Control / investigation options:
   --range 1h|6h|24h|7d                 Window length (15m to 7d also accepted)
   --provider claude|codex|gemini       Filter provider
   --project NAME                       Filter project
   --session ID                         Filter one exact session
   --model NAME                         Filter model
   --limit N                            Maximum rows (1-200)
-  --json                               JSON output
+  --json                               JSON output where supported
 
-Optimize settings:
-  --target 5-60                        Target reduction percent
-  --horizon 30-1440                    Projection horizon in minutes
-  --mode preview|manual                User interaction mode
-
-Export options:
-  --format json|csv                    Output format (default json)
-
-Optimize is advisory in Varnqor 3. Impact ranges are heuristic and non-additive.
-Varnqor never silently executes external agent actions.
-Varnqor is local-first. A configured budget is not an official provider quota.
+Varnqor 4 is a local decision-support control plane. External auto-execution is OFF.
+Optimization impact ranges are heuristic and non-additive.
+Configured budgets are local user budgets, not official provider quotas.
 `, Version)
 }
