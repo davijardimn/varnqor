@@ -163,7 +163,7 @@ func BuildOptimization(now time.Time, report domain.ExploreReport, burn BurnRate
 	}
 
 	sort.SliceStable(actions, func(i, j int) bool {
-		pi, pj := priorityRank(actions[i].Priority), priorityRank(actions[j].Priority)
+		pi, pj := optimizationPriorityRank(actions[i].Priority), optimizationPriorityRank(actions[j].Priority)
 		if pi != pj { return pi > pj }
 		return actions[i].EstimatedSavingsHigh > actions[j].EstimatedSavingsHigh
 	})
@@ -193,7 +193,7 @@ func optimizationFeasibility(target float64) string {
 	}
 }
 
-func priorityRank(value string) int {
+func optimizationPriorityRank(value string) int {
 	switch value {
 	case "high": return 3
 	case "medium": return 2
