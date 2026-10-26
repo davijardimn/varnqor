@@ -5,6 +5,7 @@ import "time"
 type ExploreFilter struct {
 	Provider     string `json:"provider"`
 	Project      string `json:"project"`
+	Session      string `json:"session"`
 	Model        string `json:"model"`
 	RangeMinutes int    `json:"rangeMinutes"`
 	Limit        int    `json:"limit"`
