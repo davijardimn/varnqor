@@ -26,15 +26,15 @@ Claude is the deepest 1.0 integration. Varnqor reads local JSONL transcripts inc
 
 ## Codex
 
-Varnqor discovers session JSONL files under the local Codex session stores and reads token-count events. Current model context and session metadata are used when available.
+Varnqor discovers session JSONL files under the local Codex session stores. Current rollouts are accounted from per-response `token_usage_record` entries and deduplicated by response ID. Legacy rollouts that contain only cumulative `token_count` snapshots use the latest-turn contribution as a fallback; when per-response records are present, overlapping snapshots are ignored. Current model context and session metadata are used when available.
 
 Compressed `.jsonl.zst` archives are counted and shown as unsupported/partial in 1.0. Varnqor does not claim those files were analyzed.
 
 ## Gemini CLI
 
-Varnqor discovers chat sessions under the Gemini local temporary project store. Both current JSONL sessions and legacy JSON conversations are supported for usage telemetry.
+Varnqor discovers chat sessions under the Gemini local temporary project store. Current append-only JSONL sessions and legacy JSON conversations are supported for usage telemetry. JSONL session metadata supplies the session ID, project directory, and main/subagent kind when available.
 
-Legacy JSON files may be rewritten rather than appended, so Varnqor re-indexes those sources safely when they change.
+Legacy JSON files may be rewritten rather than appended, so Varnqor re-indexes those sources safely when they change. Repeated message IDs in JSONL are upserted so later token-bearing revisions replace earlier versions rather than being double-counted.
 
 ## Adding a provider
 
