@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-const currentVersion = 1
+const currentVersion = 2
 
 type ConfiguredBudget struct {
 	Enabled     bool   `json:"enabled"`
@@ -17,10 +17,31 @@ type ConfiguredBudget struct {
 	ResetHour   int    `json:"resetHour"`
 }
 
+type GuardrailSettings struct {
+	Enabled                     bool    `json:"enabled"`
+	SpikePercent                float64 `json:"spikePercent"`
+	ProjectConcentrationPercent float64 `json:"projectConcentrationPercent"`
+	SessionConcentrationPercent float64 `json:"sessionConcentrationPercent"`
+	CacheReadMinimumPercent     float64 `json:"cacheReadMinimumPercent"`
+	MinimumTokens               int64   `json:"minimumTokens"`
+}
+
 type Settings struct {
-	Version        int              `json:"version"`
-	RefreshSeconds int              `json:"refreshSeconds"`
-	Budget         ConfiguredBudget `json:"budget"`
+	Version        int               `json:"version"`
+	RefreshSeconds int               `json:"refreshSeconds"`
+	Budget         ConfiguredBudget  `json:"budget"`
+	Guardrails     GuardrailSettings `json:"guardrails"`
+}
+
+func defaultGuardrails() GuardrailSettings {
+	return GuardrailSettings{
+		Enabled:                     true,
+		SpikePercent:                75,
+		ProjectConcentrationPercent: 70,
+		SessionConcentrationPercent: 60,
+		CacheReadMinimumPercent:     15,
+		MinimumTokens:               1000,
+	}
 }
 
 func Default() Settings {
@@ -31,10 +52,12 @@ func Default() Settings {
 			Label:     "Configured daily budget",
 			ResetHour: 0,
 		},
+		Guardrails: defaultGuardrails(),
 	}
 }
 
 func Normalize(value Settings) Settings {
+	legacy := value.Version < currentVersion
 	value.Version = currentVersion
 	if value.RefreshSeconds < 2 {
 		value.RefreshSeconds = 2
@@ -54,6 +77,24 @@ func Normalize(value Settings) Settings {
 	if value.Budget.LimitTokens < 0 {
 		value.Budget.LimitTokens = 0
 	}
+	if legacy {
+		value.Guardrails = defaultGuardrails()
+	}
+	if value.Guardrails.SpikePercent <= 0 {
+		value.Guardrails.SpikePercent = 75
+	}
+	if value.Guardrails.ProjectConcentrationPercent <= 0 {
+		value.Guardrails.ProjectConcentrationPercent = 70
+	}
+	if value.Guardrails.SessionConcentrationPercent <= 0 {
+		value.Guardrails.SessionConcentrationPercent = 60
+	}
+	if value.Guardrails.CacheReadMinimumPercent <= 0 {
+		value.Guardrails.CacheReadMinimumPercent = 15
+	}
+	if value.Guardrails.MinimumTokens <= 0 {
+		value.Guardrails.MinimumTokens = 1000
+	}
 	return value
 }
 
@@ -66,6 +107,21 @@ func Validate(value Settings) error {
 	}
 	if value.Budget.Enabled && value.Budget.LimitTokens <= 0 {
 		return errors.New("budget.limitTokens must be greater than zero when the budget is enabled")
+	}
+	if value.Guardrails.SpikePercent < 10 || value.Guardrails.SpikePercent > 1000 {
+		return errors.New("guardrails.spikePercent must be between 10 and 1000")
+	}
+	if value.Guardrails.ProjectConcentrationPercent < 10 || value.Guardrails.ProjectConcentrationPercent > 100 {
+		return errors.New("guardrails.projectConcentrationPercent must be between 10 and 100")
+	}
+	if value.Guardrails.SessionConcentrationPercent < 10 || value.Guardrails.SessionConcentrationPercent > 100 {
+		return errors.New("guardrails.sessionConcentrationPercent must be between 10 and 100")
+	}
+	if value.Guardrails.CacheReadMinimumPercent < 0 || value.Guardrails.CacheReadMinimumPercent > 100 {
+		return errors.New("guardrails.cacheReadMinimumPercent must be between 0 and 100")
+	}
+	if value.Guardrails.MinimumTokens < 1 {
+		return errors.New("guardrails.minimumTokens must be greater than zero")
 	}
 	return nil
 }
@@ -147,7 +203,6 @@ func Save(path string, value Settings) (Settings, error) {
 		return value, fmt.Errorf("close settings: %w", err)
 	}
 	if err := os.Rename(tempPath, path); err != nil {
-		// Windows does not always replace an existing destination atomically.
 		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			return value, fmt.Errorf("replace settings: %w", err)
 		}
