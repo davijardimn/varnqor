@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fbf8f2"/><stop offset="1" stop-color="#eee6db"/></linearGradient>
+    <linearGradient id="copper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d29163"/><stop offset="1" stop-color="#aa6038"/></linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="218" fill="url(#bg)"/>
+  <path d="M203 267c123 3 199 35 261 110 88 109 119 281 235 358 61 41 142 54 239 32-110 106-270 144-417 88-149-57-252-227-318-588Z" fill="#24312E" transform="translate(-68 -42) scale(.92)"/>
+  <path d="M397 419c116-175 297-237 476-179 42 188-29 379-185 479 38-117 12-215-73-276-64-45-137-53-218-24Z" fill="url(#copper)" transform="translate(-68 -42) scale(.92)"/>
+  <path d="M397 419c81-29 154-21 218 24-35 42-63 92-84 147-54-47-84-107-134-171Z" fill="#f7f1e8" transform="translate(-68 -42) scale(.92)"/>
+</svg>
