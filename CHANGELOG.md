@@ -2,6 +2,55 @@
 
 All notable Varnqor changes are tracked here.
 
+## 3.0.0 — development
+
+### Optimize
+- Added the first Varnqor Optimize engine, completing the original intelligence loop through reviewable optimization plans.
+- Added configurable Balanced, Economy, and Throughput goals, target reduction, projection horizon, and Preview/Manual modes.
+- Added bounded playbooks for repeated tool context, dominant-session checkpointing, sustained burn, cache reuse, session fragmentation, and Economy output budgets.
+- Added per-action evidence, priority, confidence, scope, steps, and heuristic impact ranges.
+- Marked optimization impact ranges explicitly non-additive to prevent overlapping savings from being presented as guaranteed totals.
+- Kept external auto-execution disabled: Varnqor 3 does not silently rewrite prompts, switch models, kill agents, or run tools.
+- Added `varnqor optimize` with the same temporal/provider/project/session/model scope as Explorer.
+
+### Session intelligence
+- Added exact session filtering to the local Explorer query engine and CLI.
+- Added Session Lab to the desktop with scoped totals, calls, average tokens/call, cache-read share, timeline, activity bounds, provider identity, and recent calls.
+- Added one-step routing from a hot session into a session-scoped Optimize plan.
+- Prevented global learned baselines from being presented as session/project/model-specific baselines.
+
+### Desktop generation 3
+- Replaced the V2 frontend with a single V3 desktop architecture.
+- Reoriented Overview around current posture, agent fleet, concentration, and the highest-value Optimize actions.
+- Added dedicated Sessions and Optimize surfaces.
+- Added a new warm light enterprise design system and restrained graphite dark design system.
+- Added Light, Dark, and System appearance choices with immediate switching and local persistence.
+- Kept Varnqor branding out of the sidebar workspace.
+- Preserved Ctrl/Cmd+K navigation and added theme switching to the command palette.
+
+### Localization
+- Added settings schema v3 with automatic migration from V1/V2 preferences.
+- Added System, English, Portuguese (Brazil), Spanish, German, and French desktop language choices.
+- Added centralized message fallback so diagnostics/provider-generated dynamic text can safely fall back to English.
+- Added CLI configuration for language and theme preferences.
+
+### Agent identity
+- Added locally bundled Claude Code, Codex, and Gemini CLI vector marks to provider badges, fleet cards, session rows, and provider detail surfaces.
+- Added third-party notices for the MIT-licensed Lobe Icons source vectors and trademark identification.
+- No CDN/network request is required to render provider marks.
+
+### CLI and release gates
+- Added `varnqor config language` and `varnqor config theme`.
+- Added `varnqor config optimize <balanced|economy|throughput|off>` with target/horizon/mode options.
+- Extended Windows CI and release smoke tests to execute theme/language/optimization settings and `varnqor optimize` against the real Wails executable.
+- Development version advanced to `3.0.0-dev`.
+
+### Privacy and correctness
+- Optimize runs on existing local usage metadata and privacy-minimized Waste evidence.
+- No new prompt, source-code body, or raw tool-result persistence is required.
+- Session-scoped investigation preserves provider identity and does not claim unavailable scope-specific baselines.
+- Optimization target scenarios are not provider quotas.
+
 ## 2.0.0 — 2026-10-26
 
 ### Investigation workspace
@@ -22,7 +71,7 @@ All notable Varnqor changes are tracked here.
 - Rebuilt the active frontend around Overview, Explorer, Pulse, Activity, Burn, Advisor, Projects, Models, Agents, and Settings.
 - Added global range switching and context-aware Explorer filters.
 - Added Ctrl/Cmd+K quick navigation and range commands.
-- Overview, Activity, Projects, and Models now use the same selected temporal window rather than mixing unrelated periods.
+- Overview, Activity, Projects, and Models use the same selected temporal window rather than mixing unrelated periods.
 - Removed the inactive v1 frontend and design system so only one desktop architecture ships.
 - Kept the workspace brand-free: no logo or wordmark occupies the sidebar.
 
@@ -77,7 +126,7 @@ All notable Varnqor changes are tracked here.
 - Added `varnqor providers` / `varnqor agents`.
 - Updated `status`, `analyze`, and `forecast` for aggregate multi-provider telemetry.
 - Updated Doctor to detect supported providers without treating optional missing providers as failures.
-- Added a 1.0 data-model hygiene check to Doctor.
+- Added a data-model hygiene check to Doctor.
 - JSON output remains available for automation.
 
 ### Privacy
