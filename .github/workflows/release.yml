@@ -64,26 +64,55 @@ jobs:
       - name: Verify V4 CLI surface
         shell: pwsh
         run: |
-          $version = .\build\bin\Varnqor.exe version
+          $exe = (Resolve-Path '.\build\bin\Varnqor.exe').Path
+          function Invoke-Varnqor {
+            param(
+              [string[]]$CommandArgs,
+              [string]$StdoutPath = ''
+            )
+            if ($StdoutPath) {
+              $process = Start-Process -FilePath $exe -ArgumentList $CommandArgs -Wait -PassThru -RedirectStandardOutput $StdoutPath
+            } else {
+              $process = Start-Process -FilePath $exe -ArgumentList $CommandArgs -Wait -PassThru -NoNewWindow
+            }
+            if ($process.ExitCode -ne 0) {
+              throw "Varnqor command failed ($($process.ExitCode)): $($CommandArgs -join ' ')"
+            }
+          }
+
+          $versionPath = Join-Path $env:RUNNER_TEMP 'varnqor-version.txt'
+          Invoke-Varnqor -CommandArgs @('version') -StdoutPath $versionPath
+          $version = Get-Content $versionPath -Raw
           if ($version -notmatch '${{ steps.version.outputs.app }}') { throw "Unexpected runtime version: $version" }
-          .\build\bin\Varnqor.exe help
-          .\build\bin\Varnqor.exe providers --json
-          .\build\bin\Varnqor.exe doctor --json
-          .\build\bin\Varnqor.exe config theme dark
-          .\build\bin\Varnqor.exe config language en
-          .\build\bin\Varnqor.exe config optimize balanced --target 20 --horizon 120 --mode preview
-          .\build\bin\Varnqor.exe config control balanced --burn 1.70 --session 62 --project 72 --budget-warning 80 --active 12 --cooling 45 --horizon 120 --minimum 1000
-          $config = .\build\bin\Varnqor.exe config show --json | ConvertFrom-Json
+
+          Invoke-Varnqor -CommandArgs @('help')
+          Invoke-Varnqor -CommandArgs @('providers','--json')
+          Invoke-Varnqor -CommandArgs @('doctor','--json')
+          Invoke-Varnqor -CommandArgs @('config','theme','dark')
+          Invoke-Varnqor -CommandArgs @('config','language','en')
+          Invoke-Varnqor -CommandArgs @('config','optimize','balanced','--target','20','--horizon','120','--mode','preview')
+          Invoke-Varnqor -CommandArgs @('config','control','balanced','--burn','1.70','--session','62','--project','72','--budget-warning','80','--active','12','--cooling','45','--horizon','120','--minimum','1000')
+
+          $configPath = Join-Path $env:APPDATA 'varnqor\settings.json'
+          if (-not (Test-Path $configPath)) { throw "Settings file was not persisted: $configPath" }
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
           if ($config.version -ne 4) { throw "Expected V4 settings schema" }
           if ($config.theme -ne 'dark') { throw "Expected V2-dark theme preference" }
+          if ($config.language -ne 'en') { throw "Expected English release smoke locale" }
+          if ($config.optimization.goal -ne 'balanced') { throw "Expected balanced optimization goal" }
           if ($config.control.profile -ne 'balanced') { throw "Expected balanced control profile" }
-          .\build\bin\Varnqor.exe explore --range 1h --json
-          .\build\bin\Varnqor.exe pulse --range 1h --json
-          .\build\bin\Varnqor.exe optimize --range 1h --json
-          .\build\bin\Varnqor.exe control --range 1h --json
-          $brief = .\build\bin\Varnqor.exe brief --range 1h
+
+          Invoke-Varnqor -CommandArgs @('explore','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('pulse','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('optimize','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('control','--range','1h','--json')
+
+          $briefPath = Join-Path $env:RUNNER_TEMP 'varnqor-control-brief.txt'
+          Invoke-Varnqor -CommandArgs @('brief','--range','1h') -StdoutPath $briefPath
+          $brief = Get-Content $briefPath -Raw
           if ($brief -notmatch 'Varnqor Control Brief') { throw "Control brief smoke failed" }
-          .\build\bin\Varnqor.exe export --range 1h --format csv
+
+          Invoke-Varnqor -CommandArgs @('export','--range','1h','--format','csv')
       - name: Generate SHA-256 checksum
         shell: pwsh
         run: |
