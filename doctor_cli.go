@@ -12,7 +12,7 @@ import (
 	"github.com/davijardimn/varnqor/internal/storage"
 )
 
-func runCLI(args []string) (bool, int) { if len(args)==0{return false,0}; switch args[0]{case "help","--help","-h":printCLIHelp();return true,0;case "version","--version","-v":fmt.Println("varnqor",Version);return true,0;case "doctor":return runDoctorCLI(args[1:]);case "providers","agents":return runProvidersCLI(args[1:]);case "status":return runStatusCLI(args[1:]);case "analyze":return runAnalyzeCLI(args[1:]);case "forecast":return runForecastCLI(args[1:]);case "config":return runConfigCLI(args[1:]);default:fmt.Fprintf(os.Stderr,"unknown command %q\n\n",args[0]);printCLIHelp();return true,2} }
+func runCLI(args []string) (bool, int) { if len(args)==0{return false,0}; switch args[0]{case "help","--help","-h":printCLIHelp();return true,0;case "version","--version","-v":fmt.Println("varnqor",Version);return true,0;case "doctor":return runDoctorCLI(args[1:]);case "providers","agents":return runProvidersCLI(args[1:]);case "status":return runStatusCLI(args[1:]);case "explore":return runExploreCLI(args[1:]);case "pulse":return runPulseCLI(args[1:]);case "export":return runExportCLI(args[1:]);case "analyze":return runAnalyzeCLI(args[1:]);case "forecast":return runForecastCLI(args[1:]);case "config":return runConfigCLI(args[1:]);default:fmt.Fprintf(os.Stderr,"unknown command %q\n\n",args[0]);printCLIHelp();return true,2} }
 func runDoctorCLI(args []string)(bool,int){store,storeErr:=storage.OpenDefault();if store!=nil{defer store.Close()};report:=doctor.Run(store,storeErr,Version);if wantsJSON(args){printJSON(report)}else{fmt.Printf("VARNQOR DOCTOR %s\n\n",Version);for _,item:=range report.Checks{fmt.Printf("%-5s %-26s %s\n",strings.ToUpper(item.Status),item.Label,item.Detail)};fmt.Printf("\n%s · %d pass · %d warn · %d fail\n",strings.ToUpper(report.Status),report.Pass,report.Warn,report.Fail)};if report.Fail>0{return true,1};return true,0}
 func runProvidersCLI(args []string)(bool,int){status:=loadCLIStatus();if wantsJSON(args){printJSON(status.Providers);return true,statusExitCode(status.UsageError)};fmt.Println("VARNQOR PROVIDERS\n");for _,p:=range status.Providers{caps:=[]string{};if p.Capabilities.Usage{caps=append(caps,"usage")};if p.Capabilities.Tools{caps=append(caps,"tools")};if p.Capabilities.Limits{caps=append(caps,"limits")};fmt.Printf("%-12s %-11s %4d sessions · %4d calls · %10d tokens · %s\n",p.Name,strings.ToUpper(p.State),p.ObservedSessions,p.IndexedCalls,p.TokensToday,strings.Join(caps,","));if p.Error!=""{fmt.Printf("             error: %s\n",p.Error)};if p.UnsupportedFiles>0{fmt.Printf("             %d unsupported compressed session file(s)\n",p.UnsupportedFiles)}};return true,statusExitCode(status.UsageError)}
 func runStatusCLI(args []string)(bool,int){status:=loadCLIStatus();if wantsJSON(args){printJSON(status);return true,statusExitCode(status.UsageError)};active:=0;for _,p:=range status.Providers{if p.DataDetected&&p.Error==""{active++}};fmt.Printf("VARNQOR %s\n",Version);fmt.Printf("Providers: %d active · %d known\n",active,len(status.Providers));fmt.Printf("Today: %d tokens · %d token-bearing calls · %d token-bearing sessions\n",status.Usage.Tokens.Total,status.Usage.Calls,status.Usage.Sessions);if status.Burn.Ready{fmt.Printf("Burn: %.2fx %s · pressure: %s\n",status.Burn.Ratio,strings.ToUpper(status.Burn.Level),strings.ToUpper(status.Forecast.Pressure))}else{fmt.Printf("Burn: LEARNING · %d/2 active-hour samples\n",status.Burn.BaselineSamples)};fmt.Printf("Advisor: %d recommendations · Waste scope: %s\n",len(status.Advisor.Recommendations),strings.ToUpper(status.WasteScope));if status.Quota.Available{fmt.Printf("Budget: %.1f%% used · %d remaining · source: %s\n",status.Quota.UtilizationPercent,status.Quota.Remaining,status.Quota.Source)};if status.UsageError!=""{fmt.Fprintln(os.Stderr,"error:",status.UsageError)};return true,statusExitCode(status.UsageError)}
@@ -25,18 +25,32 @@ func statusExitCode(message string)int{if message!=""{return 1};return 0}
 func printCLIHelp(){fmt.Printf(`Varnqor %s — resource intelligence for AI coding agents
 
 Usage:
-  varnqor                       Open Varnqor Desktop
-  varnqor status [--json]       Aggregate local usage summary
-  varnqor providers [--json]    Claude, Codex and Gemini provider status
-  varnqor analyze [--json]      Burn drivers, waste signals and Advisor guidance
-  varnqor forecast [--json]     Resource pressure, projection and trusted runway
-  varnqor doctor [--json]       Diagnose providers, storage and settings
-  varnqor config show           Show local settings
-  varnqor config refresh 5      Set live refresh interval (2-60s)
-  varnqor config budget 10m     Enable a configured daily budget
-  varnqor config budget off     Disable the configured daily budget
-  varnqor version               Print the application version
-  varnqor help                  Show this help
+  varnqor                              Open Varnqor Desktop
+  varnqor status [--json]              Aggregate local usage summary
+  varnqor providers [--json]           Claude, Codex and Gemini provider status
+  varnqor explore [options]            Investigate a time window
+  varnqor pulse [options]              Evaluate local guardrail signals
+  varnqor export [options]             Export the selected window as JSON or CSV
+  varnqor analyze [--json]             Burn drivers, waste signals and Advisor guidance
+  varnqor forecast [--json]            Resource pressure, projection and trusted runway
+  varnqor doctor [--json]              Diagnose providers, storage and settings
+  varnqor config show                  Show local settings
+  varnqor config refresh 5             Set live refresh interval (2-60s)
+  varnqor config budget 10m            Enable a configured daily budget
+  varnqor config budget off            Disable the configured daily budget
+  varnqor version                      Print the application version
+  varnqor help                         Show this help
+
+Explore options:
+  --range 1h|6h|24h|7d                 Window length (15m to 7d also accepted)
+  --provider claude|codex|gemini       Filter provider
+  --project NAME                       Filter project
+  --model NAME                         Filter model
+  --limit N                            Maximum rows (1-200)
+  --json                               JSON output
+
+Export options:
+  --format json|csv                    Output format (default json)
 
 Varnqor is local-first. A configured budget is not an official provider quota.
 `,Version)}
