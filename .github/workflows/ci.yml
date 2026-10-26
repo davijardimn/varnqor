@@ -82,27 +82,53 @@ jobs:
       - name: Smoke V4 CLI and settings
         shell: pwsh
         run: |
-          .\build\bin\varnqor-ci.exe version
-          .\build\bin\varnqor-ci.exe help
-          .\build\bin\varnqor-ci.exe providers --json
-          .\build\bin\varnqor-ci.exe doctor --json
-          .\build\bin\varnqor-ci.exe config theme dark
-          .\build\bin\varnqor-ci.exe config language pt-BR
-          .\build\bin\varnqor-ci.exe config optimize economy --target 25 --horizon 360 --mode preview
-          .\build\bin\varnqor-ci.exe config control economy --burn 1.50 --session 58 --project 68 --budget-warning 75 --active 10 --cooling 40 --horizon 120 --minimum 800
-          $config = .\build\bin\varnqor-ci.exe config show --json | ConvertFrom-Json
+          $exe = (Resolve-Path '.\build\bin\varnqor-ci.exe').Path
+          function Invoke-Varnqor {
+            param(
+              [string[]]$CommandArgs,
+              [string]$StdoutPath = ''
+            )
+            if ($StdoutPath) {
+              $process = Start-Process -FilePath $exe -ArgumentList $CommandArgs -Wait -PassThru -RedirectStandardOutput $StdoutPath
+            } else {
+              $process = Start-Process -FilePath $exe -ArgumentList $CommandArgs -Wait -PassThru -NoNewWindow
+            }
+            if ($process.ExitCode -ne 0) {
+              throw "Varnqor command failed ($($process.ExitCode)): $($CommandArgs -join ' ')"
+            }
+          }
+
+          Invoke-Varnqor -CommandArgs @('version')
+          Invoke-Varnqor -CommandArgs @('help')
+          Invoke-Varnqor -CommandArgs @('providers','--json')
+          Invoke-Varnqor -CommandArgs @('doctor','--json')
+
+          Invoke-Varnqor -CommandArgs @('config','theme','dark')
+          Invoke-Varnqor -CommandArgs @('config','language','pt-BR')
+          Invoke-Varnqor -CommandArgs @('config','optimize','economy','--target','25','--horizon','360','--mode','preview')
+          Invoke-Varnqor -CommandArgs @('config','control','economy','--burn','1.50','--session','58','--project','68','--budget-warning','75','--active','10','--cooling','40','--horizon','120','--minimum','800')
+
+          $configPath = Join-Path $env:APPDATA 'varnqor\settings.json'
+          if (-not (Test-Path $configPath)) { throw "Settings file was not persisted: $configPath" }
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
           if ($config.version -ne 4) { throw "Expected settings schema v4" }
           if ($config.theme -ne 'dark') { throw "Theme did not persist" }
           if ($config.language -ne 'pt-BR') { throw "Language did not persist" }
+          if ($config.optimization.goal -ne 'economy') { throw "Optimize goal did not persist" }
           if ($config.control.profile -ne 'economy') { throw "Control profile did not persist" }
           if ([math]::Abs($config.control.burnCeilingRatio - 1.50) -gt 0.001) { throw "Control burn ceiling did not persist" }
-          .\build\bin\varnqor-ci.exe explore --range 1h --json
-          .\build\bin\varnqor-ci.exe pulse --range 1h --json
-          .\build\bin\varnqor-ci.exe optimize --range 1h --json
-          .\build\bin\varnqor-ci.exe control --range 1h --json
-          $brief = .\build\bin\varnqor-ci.exe brief --range 1h
+
+          Invoke-Varnqor -CommandArgs @('explore','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('pulse','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('optimize','--range','1h','--json')
+          Invoke-Varnqor -CommandArgs @('control','--range','1h','--json')
+
+          $briefPath = Join-Path $env:RUNNER_TEMP 'varnqor-control-brief.txt'
+          Invoke-Varnqor -CommandArgs @('brief','--range','1h') -StdoutPath $briefPath
+          $brief = Get-Content $briefPath -Raw
           if ($brief -notmatch 'Varnqor Control Brief') { throw "Control brief smoke failed" }
-          .\build\bin\varnqor-ci.exe export --range 1h --format csv
+
+          Invoke-Varnqor -CommandArgs @('export','--range','1h','--format','csv')
       - name: Generate SHA-256 checksum
         shell: pwsh
         run: |
