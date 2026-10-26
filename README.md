@@ -1,165 +1,176 @@
 <div align="center">
 
-# VARNQOR
+# Varnqor
 
 ### Resource intelligence for AI coding agents.
 
-**Observe usage. Predict pressure. Detect waste. Advise with evidence.**
+**Observe usage. Understand burn. Detect waste. Act with evidence.**
 
-[![Status: Pre-alpha](https://img.shields.io/badge/status-pre--alpha-111111)](#status)
-[![License: MIT](https://img.shields.io/badge/license-MIT-111111)](LICENSE)
-[![Core: Go](https://img.shields.io/badge/core-Go-111111)](go.mod)
+[![Version](https://img.shields.io/badge/version-1.0.0-111318)](#varnqor-10)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111318)](LICENSE)
+[![Local first](https://img.shields.io/badge/local--first-yes-6366F1)](#privacy)
 
 </div>
 
 ---
 
-Varnqor is a **local-first desktop application** for understanding how AI coding agents consume resources.
+Varnqor is a **local-first desktop application and CLI** for understanding resource usage across AI coding agents. It reads supported local session telemetry, normalizes usage into a common model, attributes burn to projects/sessions/models, forecasts resource pressure, and surfaces evidence-based recommendations.
 
 ```text
-OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> ADVISE -> OPTIMIZE
+OBSERVE -> NORMALIZE -> ATTRIBUTE -> ANALYZE -> PREDICT -> ADVISE
 ```
 
-> **Control the burn.**
+Varnqor does **not** bypass provider limits, modify agent behavior automatically, upload prompts, or pretend an estimated value is an official quota.
 
-## What works now
+## Varnqor 1.0
 
-The current Claude Code pre-alpha stack includes:
+Version 1.0 turns Varnqor from a Claude-only prototype into a provider-aware resource intelligence product.
 
-- deduplicated input/output/cache accounting;
-- incremental SQLite history and hourly activity;
-- Burn Rate against a robust active-hour baseline;
-- project/session/model/subagent attribution;
-- explainable Waste Intelligence rules;
-- persistence forecasting and Resource Pressure;
-- read-only prioritized Advisor recommendations;
-- **configured trusted budgets + quota-aware Runway**;
-- **live incremental refresh while the desktop is open**;
-- local Settings and first-run onboarding;
-- visual diagnostics plus `varnqor doctor` / `varnqor status`;
-- automated Windows desktop smoke builds and prerelease packaging.
+### Supported local providers
 
-## Trusted limits, not fake quotas
+| Provider | Usage telemetry | Tool metadata | Waste analysis | Notes |
+| --- | --- | --- | --- | --- |
+| Claude Code | Yes | Yes | Yes | Full 1.0 analysis path |
+| Codex | Yes | Not yet | Not yet | JSONL sessions; compressed `.jsonl.zst` files are reported but not indexed |
+| Gemini CLI | Yes | Not yet | Not yet | JSON and JSONL chat sessions |
 
-Varnqor never turns your historical baseline into a provider quota.
+Provider support is capability-based. The desktop **Agents** view shows exactly what Varnqor can observe for each provider instead of using a generic “connected” label for unsupported features.
 
-The first trusted-limit source is `configured`: you may set your own daily token-activity budget and reset hour. Varnqor then calculates remaining budget, current-pace runway and projected usage at reset while clearly identifying the source as user-configured.
+## What Varnqor measures
 
-```text
-CONFIGURED DAILY BUDGET
-Used        6.2M / 10M
-Remaining   3.8M
-Runway      2.7h at current pace
-Reset       00:00 local
-Source      CONFIGURED
-```
+### Usage
+- input and output tokens
+- cache reads and supported cache writes
+- token-bearing calls
+- hourly activity
+- model usage
+- project and session attribution
 
-This is a budget, **not an official Claude plan limit**. See [docs/limits-and-runway.md](docs/limits-and-runway.md).
+### Burn
+Burn Rate compares the latest 60-minute pace against the median of completed active hours. Varnqor remains in **Learning** until it has enough active baseline history rather than showing a misleading multiplier.
 
-## Live monitor
+### Resource pressure
+The forecast engine uses a transparent persistence model. It projects the current pace over short horizons and reports an observed pace envelope derived from recent activity and the active baseline.
 
-The desktop refreshes the incremental local index every 5 seconds by default. The interval can be changed from 2–60 seconds.
+This is a usage projection, **not a statistical confidence interval and not provider quota data**.
 
-```text
-● LIVE · 5S
-```
+### Trusted runway
+Varnqor only computes runway when it has a trusted limit source. In 1.0, the universally supported source is a **user-configured local budget**.
 
-Live mode runs only while Varnqor Desktop is open; no hidden service is installed. See [docs/live-monitor.md](docs/live-monitor.md).
+A configured budget is always labeled as configured. It is never presented as an official Claude, Codex, or Gemini quota.
 
-## Diagnostics
+### Waste intelligence
+Claude Code tool metadata enables explainable heuristics for:
+- repeated file reads
+- repeated searches
+- oversized tool responses
+- repeated failed operations
 
-The same diagnostic layer is available in the UI and CLI:
+Findings show evidence and confidence. Varnqor does not collapse overlapping heuristics into a fake “waste percentage”.
+
+### Advisor
+Advisor combines burn, attribution, forecast, and Waste signals into prioritized recommendations. It is **advisory only** in 1.0: it does not rewrite prompts, switch models, kill agents, compact context, or execute tools.
+
+## Desktop experience
+
+The 1.0 desktop app includes:
+- Overview
+- Agents / Provider Hub
+- Burn
+- Advisor
+- Activity
+- Projects
+- Models
+- Settings + Doctor
+
+Empty states are data-aware. For example, Varnqor distinguishes a locally observed session from a token-bearing usage event, so a detected session no longer appears as a phantom zero-token model call.
+
+## CLI
 
 ```bash
-varnqor doctor
-varnqor doctor --json
+varnqor
 varnqor status
-varnqor status --json
+varnqor providers
+varnqor analyze
+varnqor forecast
+varnqor doctor
+varnqor config show
+varnqor config budget 10m
 varnqor version
 ```
 
-Doctor checks Claude discovery, local data, SQLite, settings and config-directory write access.
+Machine-readable output is available with `--json` on status, providers, analyze, forecast, and doctor commands.
 
-## Privacy boundary
+## Privacy
 
-```text
-No cloud account
-No telemetry by default
-No prompt uploads
-No source-code uploads
-Read-only source analysis
-```
+Varnqor is designed around a local privacy boundary.
 
-Raw prompts, assistant text, file contents, raw Bash commands, Grep patterns and tool-result text are not persisted by the current analytics pipeline. Tool inputs used for repeat detection are fingerprinted locally and discarded.
+By default:
+- no Varnqor cloud account
+- no prompt upload
+- no source-code body upload
+- no tool-result content persistence
+- no API keys required for local usage analysis
+- no product telemetry required for analysis
 
-## Architecture
+The usage index stores resource metadata such as token counts, timestamps, models, project/session labels, and source offsets. Claude tool analysis stores privacy-minimized metadata such as tool name, safe file/range fields, SHA-256 input fingerprints, result byte size, and error state — not the tool result body itself.
 
-- **Wails v2.17** — native desktop shell
-- **Go** — collectors, indexing, analytics, settings and diagnostics
-- **React + TypeScript + Vite** — interface
-- **SQLite** — local incremental history
+See [docs/privacy.md](docs/privacy.md) for the detailed boundary.
 
-See [docs/architecture.md](docs/architecture.md), [docs/forecasting.md](docs/forecasting.md), [docs/advisor.md](docs/advisor.md) and [docs/waste-analysis.md](docs/waste-analysis.md).
+## Data correctness
 
-## v0.1 pre-alpha checklist
+Varnqor 1.0 explicitly separates:
 
-- [x] Claude Code detection and session discovery
-- [x] Deduplicated token accounting
-- [x] SQLite incremental history
-- [x] Burn Rate and attribution
-- [x] Waste Intelligence
-- [x] Forecasting and Resource Pressure
-- [x] Read-only Advisor
-- [x] Configured trusted budget and Runway
-- [x] Live desktop refresh
-- [x] Settings, onboarding and Doctor
-- [x] Windows CI smoke build
-- [x] Windows prerelease workflow
-- [ ] Approved Varnqor application icon
-- [ ] Clean-machine installation test
-- [ ] Tag `v0.1.0-alpha.1`
+- **observed activity** — a local session/file exists
+- **token-bearing activity** — a supported usage event contains actual resource counts
+- **provider health** — local data can be read and indexed
 
-## Development
+Pre-1.0 zero-token usage rows are cleaned automatically on upgrade. Internal placeholder model labels are normalized or hidden from product surfaces.
 
-Requirements: Go 1.26+, Node.js 24+, Wails v2.17+.
+## Local storage
 
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
-cd frontend && npm install && cd ..
-wails dev
-```
+Historical telemetry is stored in a local SQLite database. Indexing is incremental: append-only session files resume from stored source offsets instead of rescanning the entire history on every refresh.
 
-Core verification:
+Legacy Gemini JSON sessions are safely re-indexed when rewritten because those files are not append-only.
+
+## Build
+
+Varnqor uses:
+- Go
+- Wails
+- React + TypeScript
+- SQLite
 
 ```bash
 go test ./internal/...
 go vet ./internal/...
-cd frontend && npm run build
+cd frontend && npm install && npm run build
+wails build
 ```
 
-## Releasing
+GitHub Actions additionally performs a real Windows Wails build, CLI smoke tests, application-icon generation, and SHA-256 checksum generation.
 
-The repository contains a Windows packaging workflow. A manual workflow run produces an artifact; a `v*` tag produces a GitHub prerelease. See [docs/releasing.md](docs/releasing.md).
+## Limits of 1.0
 
-## Roadmap
+- Claude has the deepest integration because its tool metadata adapter is already tested.
+- Codex compressed session archives are visible as unsupported files but are not silently decoded in 1.0.
+- Gemini/Codex contribute to usage, burn, forecast, model and project intelligence, but do not contribute tool-level Waste findings yet.
+- Provider limits are not assumed to be interchangeable. Runway remains unavailable unless a trusted limit exists.
 
-```text
-v0.1  Claude Code resource intelligence
-v0.2  Provider abstraction + Codex
-v0.3  Gemini
-v0.4  Deeper Waste Intelligence
-v0.5  Official/observed quota adapters
-v0.6  Advisor refinement
-v0.7  Explicitly approved resource policies
-v0.8  Adapter SDK
-v0.9  Reports & share cards
-v1.0  AI resource control plane
-```
+These boundaries are intentional. Varnqor prefers **“unavailable” over fabricated precision**.
 
-## Status
+## Contributing
 
-**Pre-alpha.** APIs, models and UI are expected to change. The first public tag has not been cut yet.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Provider adapters should preserve the local privacy boundary and must include parser fixtures/tests before being advertised as supported.
 
 ## License
 
-[MIT](LICENSE)
+MIT. See [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+**Control the burn.**
+
+</div>
